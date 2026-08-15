@@ -1,20 +1,57 @@
-# 🏢 Campus Hostel Residence Operations & Care Suite
+# 🏢 Campus Hostel Residence Operations & Care Suite (Web App)
 
-A desktop application designed for students and hostel wardens to log, track, and manage hostel maintenance grievances and announcements efficiently.
+A modern, responsive web application designed for students and hostel wardens to log, track, and manage hostel maintenance grievances and announcements efficiently from any device (smartphones, tablets, PCs).
 
 ---
 
 ## 🌟 Key Features
 
-### 🎓 Student Resident Portal
+### 🎓 Student Resident Web Portal
 - **Submit Grievances**: File maintenance or repair requests with details such as Block Name, Room Number, Category (Plumbing, Electrical, Furniture, Internet, etc.), and Priority level.
-- **Track Status**: Look up submitted requests by Room Number or Grievance ID to see real-time updates and admin remarks.
-- **Warden Notices**: View official hostel announcements and broadcast notices directly on the portal.
+- **Track Status**: Look up submitted requests by Room Number or Grievance Ticket ID to see real-time status updates and admin remarks.
+- **Warden Notices**: View official hostel announcements and broadcast circulars directly on the web portal.
 
-### 🛡️ Warden & Admin Operations Desk
+### 🛡️ Warden & Admin Operations Control Center
 - **Grievance Dashboard**: Filter, search, and manage pending or resolved grievances by Block, Category, or Status.
 - **Action & Dispatch**: Assign staff, update status (`Pending`, `In Progress`, `Resolved`, `Rejected`), and add resolution notes.
 - **Announcement Ticker**: Post, update, or remove official warden notices that display on the landing page ticker.
+- **Export Shift Reports**: Download filtered grievance datasets directly to CSV.
+
+---
+
+## 🚀 How to Run Locally
+
+### Prerequisites
+- **Python 3.8+** installed.
+- Install dependencies:
+  ```bash
+  pip install -r requirements.txt
+  ```
+
+### Run the Web Application
+```bash
+streamlit run app.py
+```
+*(The web app will open automatically in your default browser at `http://localhost:8501`)*.
+
+- **Admin Passcode**: The default passcode for the Warden portal is `admin123` *(configurable via `ADMIN_PASSCODE` environment variable)*.
+
+---
+
+## 🌐 How to Deploy Online for FREE (Streamlit Community Cloud)
+
+To make this web portal live for all students and wardens on their mobile phones:
+
+1. Push this repository to **GitHub**:
+   ```bash
+   git add .
+   git commit -m "Add Streamlit web app"
+   git push origin main
+   ```
+2. Go to **[share.streamlit.io](https://share.streamlit.io/)** and sign in with your GitHub account.
+3. Click **New App** -> Select your repository `himanshushukla0/hostel_grievance` -> Main file path: `app.py`.
+4. Click **Deploy!**
+   - You will get a live URL (e.g. `https://hostel-grievance.streamlit.app`) that anyone can open from their mobile phone or laptop browser!
 
 ---
 
@@ -22,49 +59,15 @@ A desktop application designed for students and hostel wardens to log, track, an
 
 ```text
 hostel_grievance/
-├── main.py            # Application entry point & theme setup
-├── student_view.py     # Student portal interface & workflows
-├── admin_view.py       # Warden/Admin dashboard & management
+├── app.py             # Streamlit Web Application entry point
+├── main.py            # Desktop Tkinter app fallback entry point
+├── student_view.py     # Student portal Tkinter component
+├── admin_view.py       # Warden/Admin Tkinter component
 ├── database.py         # SQLite database models, connections, and migrations
-├── verify_all.py       # Verification script for DB and UI components
-├── requirements.txt    # Dependency documentation
+├── requirements.txt    # Python package dependencies (streamlit, pandas)
 ├── .gitignore          # Git exclusion rules
 └── README.md           # Project documentation
 ```
-
----
-
-## 🚀 How to Run the Source Code
-
-### Prerequisites
-- **Python 3.8+** installed on your system.
-- *Tkinter* (included by default with Python on Windows and macOS. On Linux/Ubuntu, install via `sudo apt install python3-tk`).
-
-### Step-by-Step Instructions
-
-1. **Clone or Download the Repository**:
-   ```bash
-   git clone <YOUR-GITHUB-REPO-URL>
-   cd hostel_grievance
-   ```
-
-2. **Run the Application**:
-   ```bash
-   python main.py
-   ```
-   *(The database `hostel_care.db` will be automatically initialized on first run).*
-
-3. **Admin Passcode**:
-   - The default passcode for the Warden / Admin portal is: `admin123` *(configured in `main.py`)*.
-
----
-
-## 🛠️ How to Contribute & Make Changes
-
-We welcome contributions! Feel free to modify the codebase:
-- **UI Customizations**: Modify `configure_styles()` in [`main.py`](main.py) or component layouts in [`student_view.py`](student_view.py) and [`admin_view.py`](admin_view.py).
-- **Database Schema**: Add new fields or tables inside [`database.py`](database.py).
-- **Submitting Changes**: Create a new branch, commit your improvements, and open a Pull Request (PR).
 
 ---
 
