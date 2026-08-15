@@ -100,8 +100,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Admin passcode configuration
-ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "admin123")
+# Admin passcode configuration (reads from Streamlit Secrets or environment)
+try:
+    ADMIN_PASSCODE = st.secrets.get("ADMIN_PASSCODE", os.environ.get("ADMIN_PASSCODE", "admin123"))
+except Exception:
+    ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "admin123")
 
 # Initialize database on app startup
 database.init_db()
