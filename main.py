@@ -5,7 +5,7 @@ import database
 from student_view import StudentView
 from admin_view import AdminView
 
-ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "admin123")
+ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "1234")
 
 class App:
     def __init__(self, root):
