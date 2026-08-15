@@ -1,24 +1,37 @@
-# Python byte-compiled / optimized / DLL files
+# Python & Bytecode
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
-# SQLite Database (Exclude personal test data if desired, or keep schema initialized)
+# SQLite Database & Temp Journal/WAL Files
 *.db
 *.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
 
-# Environments
+# Compressed Archives & Deliverables
+*.zip
+*.tar.gz
+*.7z
+
+# Executables & Build Output
+dist/
+build/
+*.spec
+*.exe
+
+# OS Junk Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Virtual Environments & IDE Settings
 .venv/
 venv/
 ENV/
 env/
-
-# IDE files
 .vscode/
 .idea/
 .gemini/
-
-# Packaging
-build/
-dist/
-*.spec

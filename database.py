@@ -5,8 +5,8 @@ from contextlib import contextmanager
 DB_FILE = 'hostel_care.db'
 
 def get_connection():
-    """Establish and return a connection to the SQLite database."""
-    conn = sqlite3.connect(DB_FILE)
+    """Establish and return a connection to the SQLite database with busy timeout."""
+    conn = sqlite3.connect(DB_FILE, timeout=15.0)
     conn.row_factory = sqlite3.Row  # Access columns by name
     return conn
 
@@ -23,6 +23,11 @@ def init_db():
     """Initialize database and perform safe schema migrations."""
     with get_db() as conn:
         cursor = conn.cursor()
+        # Enable Write-Ahead Logging (WAL) for better concurrency
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL;")
+        except Exception:
+            pass
         
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS Grievances (
@@ -164,7 +169,7 @@ def get_grievance_counts():
         cursor.execute("SELECT status, COUNT(*) as count FROM Grievances GROUP BY status")
         rows = cursor.fetchall()
         
-        counts = {'total': 0, 'pending': 0, 'in_progress': 0, 'resolved': 0, 'emergency': 0}
+        counts = {'total': 0, 'pending': 0, 'in_progress': 0, 'resolved': 0, 'rejected': 0, 'emergency': 0}
         for row in rows:
             if row['status']:
                 st = row['status'].lower().replace(" ", "_")
