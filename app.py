@@ -16,28 +16,33 @@ st.set_page_config(
 # Custom CSS Styling for Premium UI
 st.markdown("""
 <style>
-    /* Main Theme Overrides */
+    /* Force Light Background for main app and crisp contrast for all text */
     .stApp {
-        background-color: #f8fafc;
+        background-color: #f8fafc !important;
+    }
+
+    /* Force all text in main content to dark navy/black */
+    .stApp .main h1, .stApp .main h2, .stApp .main h3, .stApp .main h4, .stApp .main h5, .stApp .main h6,
+    .stApp .main p, .stApp .main label, .stApp .main span, .stApp .main div {
+        color: #0f172a !important;
     }
     
     /* Header Container */
     .main-header {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        color: #ffffff;
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
         padding: 24px 30px;
         border-radius: 12px;
         margin-bottom: 16px;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
     .main-header h1 {
-        color: #ffffff;
+        color: #ffffff !important;
         font-size: 1.8rem;
         font-weight: 700;
         margin: 0;
     }
     .main-header p {
-        color: #94a3b8;
+        color: #94a3b8 !important;
         font-size: 0.95rem;
         margin-top: 4px;
         margin-bottom: 0;
@@ -45,9 +50,9 @@ st.markdown("""
 
     /* Warden Ticker Banner */
     .notice-banner {
-        background-color: #fef3c7;
-        border-left: 5px solid #d97706;
-        color: #92400e;
+        background-color: #fef3c7 !important;
+        border-left: 5px solid #d97706 !important;
+        color: #92400e !important;
         padding: 12px 18px;
         border-radius: 6px;
         font-weight: 600;
@@ -55,24 +60,52 @@ st.markdown("""
         margin-bottom: 24px;
     }
 
+    /* Sidebar Fixes: Crisp white text on dark slate background */
+    [data-testid="stSidebar"] {
+        background-color: #1e293b !important;
+    }
+    [data-testid="stSidebar"] *, 
+    [data-testid="stSidebar"] label, 
+    [data-testid="stSidebar"] label p, 
+    [data-testid="stSidebar"] span, 
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] h1, 
+    [data-testid="stSidebar"] h2, 
+    [data-testid="stSidebar"] h3 {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+    }
+    [data-testid="stSidebar"] div[data-testid="stAlert"] {
+        background-color: #0f172a !important;
+        border: 1px solid #334155 !important;
+    }
+    [data-testid="stSidebar"] div[data-testid="stAlert"] * {
+        color: #ffffff !important;
+    }
+
+    /* Form Controls & Input Styling */
+    input, textarea, select {
+        color: #0f172a !important;
+        background-color: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+    }
+
     /* Metric Cards */
-    .metric-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        padding: 16px;
-        text-align: center;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    div[data-testid="stMetric"] {
+        background-color: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        padding: 14px 16px !important;
+        border-radius: 10px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
     }
-    .metric-value {
-        font-size: 1.8rem;
-        font-weight: 700;
+    div[data-testid="stMetricValue"] {
+        color: #0f172a !important;
+        font-size: 1.8rem !important;
+        font-weight: 700 !important;
     }
-    .metric-label {
-        color: #64748b;
-        font-size: 0.85rem;
-        font-weight: 600;
-        text-transform: uppercase;
+    div[data-testid="stMetricLabel"] {
+        color: #475569 !important;
+        font-weight: 600 !important;
     }
 
     /* Status Badges */
@@ -83,18 +116,6 @@ st.markdown("""
         font-size: 0.8rem;
         font-weight: 700;
     }
-    .badge-pending { background-color: #ffedd5; color: #c2410c; }
-    .badge-progress { background-color: #fef9c3; color: #854d0e; }
-    .badge-resolved { background-color: #dcfce7; color: #15803d; }
-    .badge-rejected { background-color: #fee2e2; color: #b91c1c; }
-    .badge-emergency { background-color: #991b1b; color: #ffffff; }
-
-    /* Text contrast & Visibility overrides */
-    h1, h2, h3, h4, h5, h6 {
-        color: #0f172a !important;
-    }
-    .stMarkdown, .stText, p, label {
-        color: #1e293b !important;
     }
     .main-header h1 {
         color: #ffffff !important;
