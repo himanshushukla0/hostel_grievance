@@ -100,11 +100,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Admin passcode configuration (reads from Streamlit Secrets or environment with fallback '1234')
-try:
-    ADMIN_PASSCODE = str(st.secrets.get("ADMIN_PASSCODE", os.environ.get("ADMIN_PASSCODE", "1234")))
-except Exception:
-    ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "1234")
+# Admin passcode configuration (safely handles Streamlit Secrets or environment with fallback '1234')
+def get_admin_passcode():
+    try:
+        if hasattr(st, "secrets") and "ADMIN_PASSCODE" in st.secrets:
+            return str(st.secrets["ADMIN_PASSCODE"])
+    except Exception:
+        pass
+    return str(os.environ.get("ADMIN_PASSCODE", "1234"))
+
+ADMIN_PASSCODE = get_admin_passcode()
 
 # Initialize database on app startup
 database.init_db()
@@ -128,7 +133,11 @@ else:
 st.markdown(f'<div class="notice-banner">{ticker_text}</div>', unsafe_allow_html=True)
 
 # --- SIDEBAR NAVIGATION ---
-st.sidebar.image("https://img.icons8.com/isometric/100/building.png", width=70)
+try:
+    st.sidebar.image("https://img.icons8.com/isometric/100/building.png", width=70)
+except Exception:
+    st.sidebar.markdown("# 🏢")
+
 st.sidebar.title("Hostel Portal Desk")
 
 portal_mode = st.sidebar.radio(
