@@ -1,0 +1,8 @@
+# Hostel Grievance & Warden Operations Portal
+# This application uses standard Python 3 libraries:
+# - tkinter (GUI framework)
+# - sqlite3 (Database management)
+# - datetime, contextlib (Utilities)
+#
+# No external third-party dependencies are required to run this application!
+# Recommended Python version: Python 3.8+

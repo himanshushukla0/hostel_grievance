@@ -1,0 +1,24 @@
+# Python byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# SQLite Database (Exclude personal test data if desired, or keep schema initialized)
+*.db
+*.sqlite3
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE files
+.vscode/
+.idea/
+.gemini/
+
+# Packaging
+build/
+dist/
+*.spec
