@@ -19,7 +19,7 @@ st.set_page_config(
 
 # --- THEME STATE (dark mode toggle) ---
 if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
+    st.session_state.dark_mode = True
 
 st.session_state.dark_mode = st.sidebar.toggle(
     "🌙 Dark Mode",
@@ -30,148 +30,167 @@ st.session_state.dark_mode = st.sidebar.toggle(
 # --- BASE STYLESHEET (static — light theme defaults) ---
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap');
 
-    html, body, [class*="css"] { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    html, body, [class*="css"] {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
 
+    /* LIGHT THEME values. The dark-mode block further down re-declares these
+       same variables, so every rule below automatically follows the theme. */
     :root {
-        --bg: #f5f4f1;
+        --bg: #fcfcfc;
+        --bg-dot: rgba(0,0,0,0.055);
         --card: #ffffff;
-        --border: #e5e2db;
-        --text: #1c1e24;
-        --text-muted: #6b6f76;
+        --card-hover: #f6f6f6;
+        --border: #e6e6e6;
+        --text: #171717;
+        --text-muted: #6f6f6f;
         --input-bg: #ffffff;
-        --accent: #1f6f5c;
-        --accent-dark: #165445;
-        --navy: #1c2b3a;
-        --danger: #b3261e;
-        --warning: #b45309;
-        --success: #166534;
+        --accent: #1a9d63;
+        --accent-dark: #15784d;
+        --accent-soft: rgba(26, 157, 99, 0.10);
+        --header-bg: #171717;
+        --header-text: #fafafa;
+        --header-sub: #a1a1a1;
+        --danger: #e5484d;
+        --warning: #d97706;
+        --success: #1a9d63;
+        --info: #3b82f6;
         --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     }
 
-    .stApp { background: var(--bg) !important; transition: background 0.2s ease; }
-
-    /* Catch-all: every element inside the app inherits the theme text color.
-       More specific rules below (header, sidebar, badges) override this
-       where a fixed color is actually wanted — that's normal CSS cascade,
-       not a conflict. This replaces the old ".stApp .main h1, p, label..."
-       list, which silently failed to match some elements depending on the
-       Streamlit version's internal DOM and left them at a default dark
-       color even in dark mode. */
-    .stApp * { color: var(--text) !important; }
-    .stApp h1, .stApp h2, .stApp h3 { letter-spacing: -0.02em; font-weight: 800 !important; }
-
-    .stButton > button, .stFormSubmitButton > button { color: var(--text) !important; }
-    .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] { color: #ffffff !important; }
-
-    /* ---------- Header + ticker merged into ONE unit ---------- */
-    .app-header {
-        background: var(--navy);
-        border-radius: 14px;
-        overflow: hidden;
-        margin-bottom: 24px;
-        box-shadow: 0 6px 20px -10px rgba(28, 43, 58, 0.4);
+    /* Supabase-style dotted grid canvas */
+    .stApp {
+        background-color: var(--bg) !important;
+        background-image: radial-gradient(var(--bg-dot) 1px, transparent 1px);
+        background-size: 22px 22px;
+        transition: background-color 0.2s ease;
     }
-    .app-header .head-top { padding: 26px 30px 20px; }
+
+    /* Baseline: everything inherits theme text color. The rules AFTER this one
+       are more specific, so header / sidebar / badges override it on purpose. */
+    .stApp, .stApp * { color: var(--text) !important; }
+
+    .stApp h1, .stApp h2, .stApp h3 { letter-spacing: -0.025em; font-weight: 800 !important; }
+    .stApp h4, .stApp h5, .stApp h6 { letter-spacing: -0.015em; font-weight: 700 !important; }
+
+    /* ---------- Header + ticker: one unit ---------- */
+    .app-header {
+        background: var(--header-bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 20px;
+    }
+    .app-header .head-top { padding: 24px 28px 18px; }
     .app-header h1 {
-        color: #ffffff !important;
-        font-size: 1.6rem;
+        font-size: 1.5rem;
         font-weight: 800;
         margin: 0;
-        letter-spacing: -0.01em;
+        letter-spacing: -0.025em;
         display: flex;
         align-items: center;
         gap: 10px;
     }
+    /* High-specificity so header text always stays light on the dark panel,
+       in BOTH themes, regardless of the catch-all rule above. */
+    .stApp .app-header h1, .stApp .app-header h1 * { color: var(--header-text) !important; }
+    .stApp .app-header .head-sub, .stApp .app-header .head-sub * { color: var(--header-sub) !important; }
+    .stApp .app-header .head-ticker, .stApp .app-header .head-ticker * { color: var(--header-sub) !important; }
+    .stApp .app-header .head-ticker b { color: var(--accent) !important; font-weight: 700; }
+
     .live-dot {
-        width: 9px; height: 9px; border-radius: 50%;
-        background: #34d399;
-        animation: pulse-live 2s infinite;
+        width: 8px; height: 8px; border-radius: 50%;
+        background: var(--accent);
+        animation: pulse-live 2.4s infinite;
         flex-shrink: 0;
     }
     @keyframes pulse-live {
-        0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55); }
-        70% { box-shadow: 0 0 0 8px rgba(52, 211, 153, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+        0%   { box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.55); }
+        70%  { box-shadow: 0 0 0 7px rgba(62, 207, 142, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(62, 207, 142, 0); }
     }
-    .app-header .head-sub { color: #9aa5b1 !important; font-size: 0.85rem; margin-top: 5px; font-weight: 500; }
+    .app-header .head-sub { font-size: 0.85rem; margin-top: 5px; font-weight: 500; }
     .app-header .head-ticker {
-        background: rgba(255,255,255,0.06);
-        border-top: 1px solid rgba(255,255,255,0.08);
-        padding: 10px 30px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        color: #d7dde3 !important;
+        background: rgba(255,255,255,0.04);
+        border-top: 1px solid rgba(255,255,255,0.07);
+        padding: 10px 28px;
+        font-size: 0.8rem;
+        font-weight: 500;
     }
-    .app-header .head-ticker b { color: #5eead4; font-weight: 700; }
 
     /* ---------- Unified stat strip ---------- */
     .stat-strip {
         display: flex;
+        flex-wrap: wrap;
         background: var(--card);
         border: 1px solid var(--border);
         border-radius: 12px;
-        margin-bottom: 24px;
+        margin-bottom: 22px;
         overflow: hidden;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-        flex-wrap: wrap;
     }
     .stat-item {
         flex: 1;
-        min-width: 140px;
-        padding: 16px 20px;
+        min-width: 145px;
+        padding: 15px 20px;
         border-right: 1px solid var(--border);
         display: flex;
         align-items: baseline;
         gap: 8px;
         transition: background 0.15s ease;
     }
-    .stat-item:hover { background: rgba(31, 111, 92, 0.06); }
     .stat-item:last-child { border-right: none; }
-    .stat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-right: 2px; }
-    .stat-value { font-family: var(--mono); font-size: 1.4rem; font-weight: 700; color: var(--text); }
-    .stat-label { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-    .stat-item.is-alert { background: rgba(179, 38, 30, 0.08); }
-    .stat-item.is-alert:hover { background: rgba(179, 38, 30, 0.16); }
-    .stat-item.is-alert .stat-value, .stat-item.is-alert .stat-label { color: var(--danger); }
+    .stat-item:hover { background: var(--card-hover); }
+    .stat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .stApp .stat-value { font-family: var(--mono) !important; font-size: 1.35rem; font-weight: 700; color: var(--text) !important; }
+    .stApp .stat-label { font-size: 0.7rem; font-weight: 600; color: var(--text-muted) !important; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-item.is-alert { background: rgba(229, 72, 77, 0.10); }
+    .stat-item.is-alert:hover { background: rgba(229, 72, 77, 0.16); }
+    .stApp .stat-item.is-alert .stat-value, .stApp .stat-item.is-alert .stat-label { color: var(--danger) !important; }
 
-    .dot-total { background: #64748b; }
-    .dot-pending { background: var(--warning); }
-    .dot-progress { background: #2563eb; }
+    .dot-total    { background: #8f8f8f; }
+    .dot-pending  { background: var(--warning); }
+    .dot-progress { background: var(--info); }
     .dot-resolved { background: var(--success); }
-    .dot-alert { background: var(--danger); }
+    .dot-alert    { background: var(--danger); }
 
     .notice-banner { display: none; }
 
     /* ---------- Sidebar ---------- */
-    [data-testid="stSidebar"] { background: var(--navy) !important; }
-    [data-testid="stSidebar"] *, [data-testid="stSidebar"] label, [data-testid="stSidebar"] label p,
-    [data-testid="stSidebar"] span, [data-testid="stSidebar"] p,
-    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
-        color: #dfe4e9 !important; font-weight: 600 !important;
+    [data-testid="stSidebar"] {
+        background: var(--header-bg) !important;
+        border-right: 1px solid var(--border);
     }
-    [data-testid="stSidebar"] h3 { color: #8a94a0 !important; font-size: 0.75rem !important; text-transform: uppercase; letter-spacing: 0.06em; }
+    .stApp [data-testid="stSidebar"] * { color: #e4e4e4 !important; font-weight: 500; }
+    .stApp [data-testid="stSidebar"] h1,
+    .stApp [data-testid="stSidebar"] h2 { color: #fafafa !important; font-weight: 700 !important; }
+    .stApp [data-testid="stSidebar"] h3 {
+        color: #8f8f8f !important; font-size: 0.72rem !important;
+        text-transform: uppercase; letter-spacing: 0.07em; font-weight: 700 !important;
+    }
     [data-testid="stSidebar"] div[data-testid="stAlert"] {
-        background-color: rgba(255,255,255,0.05) !important;
-        border: 1px solid rgba(255,255,255,0.1) !important;
-        border-left: 3px solid var(--accent) !important;
+        background-color: rgba(255,255,255,0.04) !important;
+        border: 1px solid rgba(255,255,255,0.09) !important;
+        border-left: 2px solid var(--accent) !important;
         border-radius: 8px !important;
     }
-    [data-testid="stSidebar"] div[data-testid="stAlert"] * { color: #d7dde3 !important; font-size: 0.82rem !important; }
-    [data-testid="stSidebar"] div[data-testid="stMetric"] * { color: #f1f5f9 !important; }
+    .stApp [data-testid="stSidebar"] div[data-testid="stAlert"] * {
+        color: #c9c9c9 !important; font-size: 0.8rem !important;
+    }
 
     /* ---------- Form controls ---------- */
-    input, textarea, select {
-        color: var(--text) !important;
+    input, textarea, select, div[data-baseweb="select"] > div {
         background-color: var(--input-bg) !important;
         border: 1px solid var(--border) !important;
         border-radius: 8px !important;
     }
+    .stApp input, .stApp textarea, .stApp select { color: var(--text) !important; }
     input:focus, textarea:focus, select:focus {
         border-color: var(--accent) !important;
-        box-shadow: 0 0 0 3px rgba(31, 111, 92, 0.14) !important;
+        box-shadow: 0 0 0 3px var(--accent-soft) !important;
     }
+    ::placeholder { color: var(--text-muted) !important; opacity: 0.7 !important; }
     div[data-testid="InputInstructions"], div[data-testid="stInputInstruction"],
     small[data-testid="stInputInstruction"], [data-testid="stInputInstruction"],
     .stTextInput small, .stTextArea small, .stSelectbox small {
@@ -180,56 +199,88 @@ st.markdown("""
     }
 
     /* ---------- Buttons ---------- */
-    .stButton > button, .stFormSubmitButton > button {
-        border-radius: 8px !important; font-weight: 600 !important;
-        border: 1px solid var(--border) !important; transition: all 0.15s ease !important;
+    .stButton > button, .stFormSubmitButton > button, .stDownloadButton > button {
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        background: var(--card) !important;
+        border: 1px solid var(--border) !important;
+        transition: all 0.15s ease !important;
+    }
+    .stButton > button:hover, .stFormSubmitButton > button:hover, .stDownloadButton > button:hover {
+        border-color: var(--accent) !important;
     }
     .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] {
-        background: var(--accent) !important; border: 1px solid var(--accent-dark) !important;
-        box-shadow: 0 3px 10px -3px rgba(31, 111, 92, 0.5) !important;
+        background: var(--accent) !important;
+        border: 1px solid var(--accent-dark) !important;
+    }
+    .stApp .stButton > button[kind="primary"], .stApp .stButton > button[kind="primary"] *,
+    .stApp .stFormSubmitButton > button[kind="primary"], .stApp .stFormSubmitButton > button[kind="primary"] * {
+        color: #ffffff !important;
     }
     .stButton > button[kind="primary"]:hover, .stFormSubmitButton > button[kind="primary"]:hover {
-        background: var(--accent-dark) !important; transform: translateY(-1px);
+        background: var(--accent-dark) !important;
     }
 
     /* ---------- Tabs ---------- */
-    button[data-baseweb="tab"] { font-weight: 600 !important; font-size: 0.92rem !important; color: var(--text-muted) !important; }
-    button[data-baseweb="tab"][aria-selected="true"] { color: var(--accent) !important; }
-    div[data-baseweb="tab-highlight"] { background-color: var(--accent) !important; height: 3px !important; }
+    button[data-baseweb="tab"] { font-weight: 600 !important; font-size: 0.9rem !important; }
+    .stApp button[data-baseweb="tab"] * { color: var(--text-muted) !important; }
+    .stApp button[data-baseweb="tab"][aria-selected="true"] * { color: var(--text) !important; }
+    div[data-baseweb="tab-highlight"] { background-color: var(--accent) !important; height: 2px !important; }
+    div[data-baseweb="tab-border"] { background-color: var(--border) !important; }
 
     /* ---------- Metric cards ---------- */
     div[data-testid="stMetric"] {
-        background-color: var(--card) !important; border: 1px solid var(--border) !important;
-        padding: 14px 16px !important; border-radius: 10px !important;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+        background-color: var(--card) !important;
+        border: 1px solid var(--border) !important;
+        padding: 14px 16px !important;
+        border-radius: 10px !important;
     }
-    div[data-testid="stMetricValue"] { color: var(--text) !important; font-family: var(--mono) !important; font-size: 1.5rem !important; font-weight: 700 !important; }
-    div[data-testid="stMetricLabel"] { color: var(--text-muted) !important; font-weight: 600 !important; text-transform: uppercase; font-size: 0.7rem !important; letter-spacing: 0.05em; }
+    div[data-testid="stMetricValue"] { font-family: var(--mono) !important; font-size: 1.45rem !important; font-weight: 700 !important; }
+    .stApp div[data-testid="stMetricLabel"] * { color: var(--text-muted) !important; font-weight: 600 !important; text-transform: uppercase; font-size: 0.7rem !important; letter-spacing: 0.05em; }
 
     /* ---------- Expanders ---------- */
-    div[data-testid="stExpander"] { border: 1px solid var(--border) !important; border-radius: 10px !important; box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important; overflow: hidden; }
-    div[data-testid="stExpander"] summary { font-weight: 700 !important; font-size: 0.9rem !important; }
+    div[data-testid="stExpander"] {
+        border: 1px solid var(--border) !important;
+        border-radius: 10px !important;
+        background: var(--card) !important;
+        overflow: hidden;
+    }
+    div[data-testid="stExpander"] summary { font-weight: 700 !important; font-size: 0.88rem !important; }
     div[data-testid="stExpander"]:hover { border-color: var(--accent) !important; }
 
     /* ---------- Notice board cards ---------- */
     .card-box {
-        background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--accent);
-        border-radius: 10px; padding: 16px 18px; margin-bottom: 12px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-        transition: transform 0.15s ease;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-left: 2px solid var(--accent);
+        border-radius: 10px;
+        padding: 16px 18px;
+        margin-bottom: 12px;
+        transition: border-color 0.15s ease;
     }
-    .card-box:hover { transform: translateX(2px); }
+    .card-box:hover { border-color: var(--accent); }
+    .stApp .card-box .card-title { color: var(--text) !important; font-weight: 700; margin: 0; font-size: 1rem; }
+    .stApp .card-box .card-meta { color: var(--accent) !important; font-size: 0.78rem; font-weight: 600; margin: 6px 0 10px 0; }
+    .stApp .card-box .card-body { color: var(--text-muted) !important; font-size: 0.92rem; margin: 0; }
 
-    /* ---------- Status badges (kept legible in both themes on purpose) ---------- */
-    .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
-    .badge-pending { background: #fdecea; color: #b3261e; border: 1px solid #f3c6c2; }
-    .badge-progress { background: #fef3e2; color: #b45309; border: 1px solid #fbd8a3; }
-    .badge-resolved { background: #e6f4ea; color: #166534; border: 1px solid #bbe3c8; }
-    .badge-rejected { background: #eceff1; color: #475569; border: 1px solid #d3d9de; }
+    /* ---------- Status badges (fixed colors in both themes, on purpose) ---------- */
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; }
+    .stApp .badge-pending  { background: rgba(229,72,77,0.13);  color: #e5484d !important; border: 1px solid rgba(229,72,77,0.3); }
+    .stApp .badge-progress { background: rgba(217,119,6,0.13);  color: #d97706 !important; border: 1px solid rgba(217,119,6,0.3); }
+    .stApp .badge-resolved { background: rgba(62,207,142,0.13); color: #1a9d63 !important; border: 1px solid rgba(62,207,142,0.3); }
+    .stApp .badge-rejected { background: rgba(143,143,143,0.14); color: #8f8f8f !important; border: 1px solid rgba(143,143,143,0.3); }
 
-    code { font-family: var(--mono) !important; background: rgba(31,111,92,0.12) !important; color: var(--accent) !important; padding: 1px 6px !important; border-radius: 4px !important; }
+    .stApp code {
+        font-family: var(--mono) !important;
+        background: var(--accent-soft) !important;
+        color: var(--accent) !important;
+        padding: 1px 6px !important;
+        border-radius: 5px !important;
+        font-size: 0.85em !important;
+    }
     [data-testid="stDataFrame"] { border: 1px solid var(--border) !important; border-radius: 10px !important; overflow: hidden; }
-    div[data-testid="stAlert"] { border-radius: 10px !important; }
+    div[data-testid="stAlert"] { border-radius: 10px !important; border: 1px solid var(--border) !important; }
+    hr { border-color: var(--border) !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -241,14 +292,21 @@ if st.session_state.dark_mode:
     st.markdown("""
     <style>
     :root {
-        --bg: #101317 !important;
-        --card: #1a1e24 !important;
-        --border: #2b3038 !important;
-        --text: #e7eaee !important;
-        --text-muted: #9099a6 !important;
-        --input-bg: #12151a !important;
-        --accent: #2dd4bf !important;
-        --accent-dark: #14b8a6 !important;
+        --bg: #1c1c1c !important;
+        --bg-dot: rgba(255,255,255,0.045) !important;
+        --card: #202020 !important;
+        --card-hover: #262626 !important;
+        --border: #2e2e2e !important;
+        --text: #ededed !important;
+        --text-muted: #8f8f8f !important;
+        --input-bg: #181818 !important;
+        --accent: #3ecf8e !important;
+        --accent-dark: #2fb87a !important;
+        --accent-soft: rgba(62, 207, 142, 0.12) !important;
+        --header-bg: #161616 !important;
+        --header-text: #fafafa !important;
+        --header-sub: #9b9b9b !important;
+        --success: #3ecf8e !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -275,31 +333,36 @@ if latest_notices:
 else:
     ticker_text = "📢 Block Maintenance Active &nbsp;•&nbsp; Warden Office: <b>Ext 101</b> &nbsp;•&nbsp; Medical Room: <b>Ext 108</b>"
 
-st.markdown(f"""
-<div class="app-header">
-    <div class="head-top">
-        <h1><span class="live-dot"></span>🏢 Campus Hostel Residence Operations &amp; Care Suite</h1>
-        <div class="head-sub">Digital Maintenance Dispatch • Warden Support • Resident Care Desk</div>
-    </div>
-    <div class="head-ticker">{ticker_text}</div>
-</div>
-""", unsafe_allow_html=True)
+# NOTE: this HTML is built as flat single-line strings with NO leading indentation.
+# Streamlit runs the string through a markdown parser first, and any line indented
+# by 4+ spaces is treated as a literal code block — which is why the emergency tile
+# previously rendered as visible raw HTML instead of as an element.
+header_html = (
+    '<div class="app-header">'
+    '<div class="head-top">'
+    '<h1><span class="live-dot"></span>🏢 Campus Hostel Residence Operations &amp; Care Suite</h1>'
+    '<div class="head-sub">Digital Maintenance Dispatch • Warden Support • Resident Care Desk</div>'
+    '</div>'
+    f'<div class="head-ticker">{ticker_text}</div>'
+    '</div>'
+)
+st.markdown(header_html, unsafe_allow_html=True)
 
 # --- UNIFIED STAT STRIP ---
 counts = database.get_grievance_counts()
 
-stat_items = f"""
-    <div class="stat-item"><span class="stat-dot dot-total"></span><span class="stat-value">{counts['total']}</span><span class="stat-label">Total</span></div>
-    <div class="stat-item"><span class="stat-dot dot-pending"></span><span class="stat-value">{counts['pending']}</span><span class="stat-label">Pending</span></div>
-    <div class="stat-item"><span class="stat-dot dot-progress"></span><span class="stat-value">{counts['in_progress']}</span><span class="stat-label">In Progress</span></div>
-    <div class="stat-item"><span class="stat-dot dot-resolved"></span><span class="stat-value">{counts['resolved']}</span><span class="stat-label">Resolved</span></div>
-"""
+stat_html = (
+    '<div class="stat-strip">'
+    f'<div class="stat-item"><span class="stat-dot dot-total"></span><span class="stat-value">{counts["total"]}</span><span class="stat-label">Total</span></div>'
+    f'<div class="stat-item"><span class="stat-dot dot-pending"></span><span class="stat-value">{counts["pending"]}</span><span class="stat-label">Pending</span></div>'
+    f'<div class="stat-item"><span class="stat-dot dot-progress"></span><span class="stat-value">{counts["in_progress"]}</span><span class="stat-label">In Progress</span></div>'
+    f'<div class="stat-item"><span class="stat-dot dot-resolved"></span><span class="stat-value">{counts["resolved"]}</span><span class="stat-label">Resolved</span></div>'
+)
 if counts.get('emergency', 0) > 0:
-    stat_items += f"""
-    <div class="stat-item is-alert"><span class="stat-dot dot-alert"></span><span class="stat-value">{counts['emergency']}</span><span class="stat-label">Emergency</span></div>
-    """
+    stat_html += f'<div class="stat-item is-alert"><span class="stat-dot dot-alert"></span><span class="stat-value">{counts["emergency"]}</span><span class="stat-label">Emergency</span></div>'
+stat_html += '</div>'
 
-st.markdown(f'<div class="stat-strip">{stat_items}</div>', unsafe_allow_html=True)
+st.markdown(stat_html, unsafe_allow_html=True)
 
 # --- SIDEBAR NAVIGATION ---
 try:
@@ -633,15 +696,14 @@ if portal_mode == "🎓 Student Resident Portal":
             for n in notices:
                 expiry_str = f"⏳ Active until: {n['expires_at']}" if n.get('expires_at') else "📌 Permanent Notice"
                 with st.container():
-                    st.markdown(f"""
-                    <div class="card-box">
-                        <h4 style="margin:0; color:var(--text);">📢 {n['title']}</h4>
-                        <p style="color:var(--accent); font-size:0.85rem; font-weight:600; margin: 4px 0 10px 0;">
-                            Target: {n['target_block']} | Category: {n['category']} | Date: {n['date_posted']} | <span style="color:#e11d48; font-weight:bold;">{expiry_str}</span> | Posted by: {n.get('posted_by', 'Warden Office')}
-                        </p>
-                        <p style="color:var(--text-muted); font-size:0.95rem; margin:0;">{n['content']}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    card_html = (
+                        '<div class="card-box">'
+                        f'<h4 class="card-title">📢 {n["title"]}</h4>'
+                        f'<p class="card-meta">Target: {n["target_block"]} &nbsp;|&nbsp; {n["category"]} &nbsp;|&nbsp; {n["date_posted"]} &nbsp;|&nbsp; {expiry_str} &nbsp;|&nbsp; {n.get("posted_by", "Warden Office")}</p>'
+                        f'<p class="card-body">{n["content"]}</p>'
+                        '</div>'
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
         else:
             st.info("No active announcements published for this block.")
 
