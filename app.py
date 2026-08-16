@@ -20,325 +20,198 @@ st.set_page_config(
 # Custom CSS Styling for Premium UI
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap');
 
-    html, body, [class*="css"] {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
+    html, body, [class*="css"] { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
 
     :root {
-        --bg: #f7f3ec;
+        --bg: #f5f4f1;
         --card: #ffffff;
-        --border: #e7ded0;
-        --text: #1c1f2b;
-        --text-muted: #6b6f7d;
-        --gold: #ca8a04;
-        --gold-dark: #a16207;
-        --navy: #1e3a5f;
-        --navy-deep: #0f172a;
-        --teal: #0f766e;
-        --green: #15803d;
-        --danger: #dc2626;
-        --warning: #d97706;
+        --border: #e5e2db;
+        --text: #1c1e24;
+        --text-muted: #6b6f76;
+        --accent: #1f6f5c;
+        --accent-dark: #165445;
+        --navy: #1c2b3a;
+        --danger: #b3261e;
+        --warning: #b45309;
+        --success: #166534;
         --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     }
 
-    .stApp {
-        background: linear-gradient(180deg, #faf7f0 0%, #f7f3ec 260px, #f4efe4 100%) !important;
-    }
+    .stApp { background: var(--bg) !important; }
 
     .stApp .main h1, .stApp .main h2, .stApp .main h3, .stApp .main h4, .stApp .main h5, .stApp .main h6,
     .stApp .main p, .stApp .main label, .stApp .main span, .stApp .main div {
         color: var(--text) !important;
     }
-    .stApp .main h1, .stApp .main h2, .stApp .main h3 {
-        letter-spacing: -0.02em;
-        font-weight: 800 !important;
-    }
+    .stApp .main h1, .stApp .main h2, .stApp .main h3 { letter-spacing: -0.02em; font-weight: 800 !important; }
 
-    /* ---------- Header ---------- */
-    .main-header {
-        background: linear-gradient(120deg, var(--navy-deep) 0%, var(--navy) 60%, #16324f 100%) !important;
-        padding: 30px 34px;
-        border-radius: 18px;
-        margin-bottom: 16px;
-        border-top: 4px solid var(--gold);
-        box-shadow: 0 18px 40px -18px rgba(15, 23, 42, 0.55), 0 0 0 1px rgba(202, 138, 4, 0.15);
-        position: relative;
+    /* ---------- Header + ticker merged into ONE unit ---------- */
+    .app-header {
+        background: var(--navy);
+        border-radius: 14px;
+        overflow: hidden;
+        margin-bottom: 24px;
+        box-shadow: 0 6px 20px -10px rgba(28, 43, 58, 0.4);
     }
-    .main-header h1 {
+    .app-header .head-top {
+        padding: 26px 30px 20px;
+    }
+    .app-header h1 {
         color: #ffffff !important;
-        font-size: 1.75rem;
+        font-size: 1.6rem;
         font-weight: 800;
         margin: 0;
         letter-spacing: -0.01em;
     }
-    .main-header p {
-        color: #cbd5e1 !important;
-        font-size: 0.88rem;
-        margin-top: 6px;
-        margin-bottom: 0;
+    .app-header .head-sub {
+        color: #9aa5b1 !important;
+        font-size: 0.85rem;
+        margin-top: 5px;
         font-weight: 500;
     }
-
-    /* ---------- Notice ticker ---------- */
-    .notice-banner {
-        background: #fef8e8 !important;
-        border: 1px solid #f3d98b !important;
-        border-left: 4px solid var(--gold) !important;
-        color: #7c5a05 !important;
-        padding: 12px 18px;
-        border-radius: 10px;
+    .app-header .head-ticker {
+        background: rgba(255,255,255,0.06);
+        border-top: 1px solid rgba(255,255,255,0.08);
+        padding: 10px 30px;
+        font-size: 0.82rem;
         font-weight: 600;
-        font-size: 0.88rem;
-        margin-bottom: 24px;
+        color: #d7dde3 !important;
     }
+    .app-header .head-ticker b { color: var(--accent); font-weight: 700; }
 
-    /* ---------- KPI dashboard row ---------- */
-    .kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 16px;
-        margin-bottom: 28px;
-    }
-    @media (max-width: 900px) {
-        .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-    .kpi-card {
+    /* ---------- Unified stat strip (replaces 4 separate KPI cards) ---------- */
+    .stat-strip {
+        display: flex;
         background: var(--card);
-        border-radius: 16px;
-        padding: 20px;
-        display: flex;
-        align-items: center;
-        gap: 14px;
         border: 1px solid var(--border);
-        box-shadow: 0 4px 14px -6px rgba(30, 58, 95, 0.1);
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-    .kpi-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 14px 28px -10px rgba(30, 58, 95, 0.22);
-    }
-    .kpi-icon {
-        width: 46px;
-        height: 46px;
         border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.3rem;
-        flex-shrink: 0;
+        margin-bottom: 24px;
+        overflow: hidden;
+        box-shadow: 0 1px 2px rgba(28,43,58,0.04);
     }
-    .kpi-value {
+    .stat-item {
+        flex: 1;
+        padding: 16px 20px;
+        border-right: 1px solid var(--border);
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-dot {
+        width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+        margin-right: 2px;
+    }
+    .stat-value {
         font-family: var(--mono);
-        font-size: 1.9rem;
-        font-weight: 800;
-        line-height: 1;
+        font-size: 1.4rem;
+        font-weight: 700;
         color: var(--text);
     }
-    .kpi-label {
-        font-size: 0.74rem;
+    .stat-label {
+        font-size: 0.72rem;
         font-weight: 600;
         color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.04em;
-        margin-top: 5px;
     }
-    .kpi-navy .kpi-icon { background: #e2e8f5; color: var(--navy); }
-    .kpi-navy { border-top: 3px solid var(--navy); }
-    .kpi-gold .kpi-icon { background: #fef3c7; color: var(--gold-dark); }
-    .kpi-gold { border-top: 3px solid var(--gold); }
-    .kpi-teal .kpi-icon { background: #ccfbf1; color: var(--teal); }
-    .kpi-teal { border-top: 3px solid var(--teal); }
-    .kpi-green .kpi-icon { background: #dcfce7; color: var(--green); }
-    .kpi-green { border-top: 3px solid var(--green); }
+    .stat-item.is-alert { background: #fdecea; }
+    .stat-item.is-alert .stat-value, .stat-item.is-alert .stat-label { color: var(--danger); }
 
-    .emergency-strip {
-        background: linear-gradient(90deg, #b91c1c, #7f1d1d);
-        color: #fff;
-        padding: 13px 18px;
-        border-radius: 12px;
-        font-weight: 700;
-        margin-bottom: 22px;
-        box-shadow: 0 8px 22px -6px rgba(127, 29, 29, 0.5);
-    }
+    .dot-total { background: #64748b; }
+    .dot-pending { background: var(--warning); }
+    .dot-progress { background: #2563eb; }
+    .dot-resolved { background: var(--success); }
+    .dot-alert { background: var(--danger); }
+
+    /* ---------- Notices (student view) ---------- */
+    .notice-banner { display: none; } /* superseded by merged header ticker */
 
     /* ---------- Sidebar ---------- */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0f172a 0%, #16213a 55%, #0f172a 100%) !important;
-        border-right: 2px solid var(--gold);
-    }
-    [data-testid="stSidebar"] *,
-    [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] label p,
-    [data-testid="stSidebar"] span,
-    [data-testid="stSidebar"] p,
-    [data-testid="stSidebar"] h1,
-    [data-testid="stSidebar"] h2,
-    [data-testid="stSidebar"] h3 {
-        color: #e5e9f0 !important;
-        font-weight: 600 !important;
+    [data-testid="stSidebar"] { background: var(--navy) !important; }
+    [data-testid="stSidebar"] *, [data-testid="stSidebar"] label, [data-testid="stSidebar"] label p,
+    [data-testid="stSidebar"] span, [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+        color: #dfe4e9 !important; font-weight: 600 !important;
     }
     [data-testid="stSidebar"] h3 {
-        color: var(--gold) !important;
-        font-size: 0.8rem !important;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
+        color: #8a94a0 !important; font-size: 0.75rem !important;
+        text-transform: uppercase; letter-spacing: 0.06em;
     }
     [data-testid="stSidebar"] div[data-testid="stAlert"] {
-        background-color: rgba(202, 138, 4, 0.08) !important;
-        border: 1px solid rgba(202, 138, 4, 0.35) !important;
-        border-left: 3px solid var(--gold) !important;
-        border-radius: 10px !important;
+        background-color: rgba(255,255,255,0.05) !important;
+        border: 1px solid rgba(255,255,255,0.1) !important;
+        border-left: 3px solid var(--accent) !important;
+        border-radius: 8px !important;
     }
-    [data-testid="stSidebar"] div[data-testid="stAlert"] * {
-        color: #fde68a !important;
-        font-size: 0.82rem !important;
-    }
-    [data-testid="stSidebar"] div[data-testid="stMetric"] * {
-        color: #f1f5f9 !important;
-    }
+    [data-testid="stSidebar"] div[data-testid="stAlert"] * { color: #d7dde3 !important; font-size: 0.82rem !important; }
+    [data-testid="stSidebar"] div[data-testid="stMetric"] * { color: #f1f5f9 !important; }
 
     /* ---------- Form controls ---------- */
     input, textarea, select {
-        color: var(--text) !important;
-        background-color: #ffffff !important;
-        border: 1px solid var(--border) !important;
-        border-radius: 10px !important;
+        color: var(--text) !important; background-color: #ffffff !important;
+        border: 1px solid var(--border) !important; border-radius: 8px !important;
     }
     input:focus, textarea:focus, select:focus {
-        border-color: var(--gold) !important;
-        box-shadow: 0 0 0 4px rgba(202, 138, 4, 0.15) !important;
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 3px rgba(31, 111, 92, 0.14) !important;
     }
-    div[data-testid="InputInstructions"],
-    div[data-testid="stInputInstruction"],
-    small[data-testid="stInputInstruction"],
-    [data-testid="stInputInstruction"],
-    .stTextInput small,
-    .stTextArea small,
-    .stSelectbox small {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
+    div[data-testid="InputInstructions"], div[data-testid="stInputInstruction"],
+    small[data-testid="stInputInstruction"], [data-testid="stInputInstruction"],
+    .stTextInput small, .stTextArea small, .stSelectbox small {
+        display: none !important; visibility: hidden !important; opacity: 0 !important;
+        height: 0 !important; margin: 0 !important; padding: 0 !important;
     }
 
     /* ---------- Buttons ---------- */
     .stButton > button, .stFormSubmitButton > button {
-        border-radius: 10px !important;
-        font-weight: 600 !important;
-        border: 1px solid var(--border) !important;
-        transition: all 0.15s ease !important;
+        border-radius: 8px !important; font-weight: 600 !important;
+        border: 1px solid var(--border) !important; transition: all 0.15s ease !important;
     }
     .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] {
-        background: linear-gradient(135deg, var(--gold), var(--gold-dark)) !important;
-        border: none !important;
-        color: #1c1405 !important;
-        box-shadow: 0 6px 16px -4px rgba(202, 138, 4, 0.55) !important;
-    }
-    .stButton > button[kind="primary"] p, .stFormSubmitButton > button[kind="primary"] p {
-        color: #1c1405 !important;
-        font-weight: 700 !important;
+        background: var(--accent) !important; border: 1px solid var(--accent-dark) !important;
+        box-shadow: 0 3px 10px -3px rgba(31, 111, 92, 0.5) !important;
     }
     .stButton > button[kind="primary"]:hover, .stFormSubmitButton > button[kind="primary"]:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 10px 22px -4px rgba(202, 138, 4, 0.65) !important;
+        background: var(--accent-dark) !important;
     }
 
     /* ---------- Tabs ---------- */
-    button[data-baseweb="tab"] {
-        font-weight: 600 !important;
-        font-size: 0.92rem !important;
-        color: var(--text-muted) !important;
-    }
-    button[data-baseweb="tab"][aria-selected="true"] {
-        color: var(--navy) !important;
-    }
-    div[data-baseweb="tab-highlight"] {
-        background-color: var(--gold) !important;
-        height: 3px !important;
-    }
+    button[data-baseweb="tab"] { font-weight: 600 !important; font-size: 0.92rem !important; color: var(--text-muted) !important; }
+    button[data-baseweb="tab"][aria-selected="true"] { color: var(--accent) !important; }
+    div[data-baseweb="tab-highlight"] { background-color: var(--accent) !important; height: 3px !important; }
 
-    /* ---------- Main-area metric cards (Warden dashboard) ---------- */
+    /* ---------- Warden metric cards (unchanged Streamlit ones) ---------- */
     div[data-testid="stMetric"] {
-        background-color: var(--card) !important;
-        border: 1px solid var(--border) !important;
-        border-top: 3px solid var(--navy) !important;
-        padding: 14px 16px !important;
-        border-radius: 12px !important;
-        box-shadow: 0 4px 14px -6px rgba(30,58,95,0.1) !important;
+        background-color: var(--card) !important; border: 1px solid var(--border) !important;
+        padding: 14px 16px !important; border-radius: 10px !important;
+        box-shadow: 0 1px 2px rgba(28,43,58,0.04) !important;
     }
-    div[data-testid="stMetricValue"] {
-        color: var(--text) !important;
-        font-family: var(--mono) !important;
-        font-size: 1.7rem !important;
-        font-weight: 700 !important;
-    }
-    div[data-testid="stMetricLabel"] {
-        color: var(--text-muted) !important;
-        font-weight: 600 !important;
-        text-transform: uppercase;
-        font-size: 0.72rem !important;
-        letter-spacing: 0.05em;
-    }
+    div[data-testid="stMetricValue"] { color: var(--text) !important; font-family: var(--mono) !important; font-size: 1.5rem !important; font-weight: 700 !important; }
+    div[data-testid="stMetricLabel"] { color: var(--text-muted) !important; font-weight: 600 !important; text-transform: uppercase; font-size: 0.7rem !important; letter-spacing: 0.05em; }
 
-    /* ---------- Expanders (ticket / leave cards) ---------- */
-    div[data-testid="stExpander"] {
-        border: 1px solid var(--border) !important;
-        border-radius: 14px !important;
-        box-shadow: 0 2px 8px rgba(30,58,95,0.05) !important;
-        overflow: hidden;
-    }
-    div[data-testid="stExpander"] summary {
-        font-weight: 700 !important;
-        font-size: 0.92rem !important;
-    }
+    /* ---------- Expanders ---------- */
+    div[data-testid="stExpander"] { border: 1px solid var(--border) !important; border-radius: 10px !important; box-shadow: 0 1px 2px rgba(28,43,58,0.03) !important; overflow: hidden; }
+    div[data-testid="stExpander"] summary { font-weight: 700 !important; font-size: 0.9rem !important; }
 
     /* ---------- Notice board cards ---------- */
     .card-box {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-left: 4px solid var(--gold);
-        border-radius: 14px;
-        padding: 18px 20px;
-        margin-bottom: 14px;
-        box-shadow: 0 4px 14px -6px rgba(30,58,95,0.08);
-        transition: box-shadow 0.15s ease, transform 0.15s ease;
-    }
-    .card-box:hover {
-        box-shadow: 0 10px 24px -8px rgba(30,58,95,0.18);
-        transform: translateY(-2px);
+        background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+        border-radius: 10px; padding: 16px 18px; margin-bottom: 12px;
+        box-shadow: 0 1px 2px rgba(28,43,58,0.03);
     }
 
-    /* ---------- Status badges (semantic — kept independent of brand color) ---------- */
-    .badge {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 999px;
-        font-size: 0.74rem;
-        font-weight: 700;
-        letter-spacing: 0.02em;
-    }
-    .badge-pending { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-    .badge-progress { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
-    .badge-resolved { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-    .badge-rejected { background: #e2e8f0; color: #475569; border: 1px solid #cbd5e1; }
+    /* ---------- Status badges ---------- */
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+    .badge-pending { background: #fdecea; color: #b3261e; border: 1px solid #f3c6c2; }
+    .badge-progress { background: #fef3e2; color: #b45309; border: 1px solid #fbd8a3; }
+    .badge-resolved { background: #e6f4ea; color: #166534; border: 1px solid #bbe3c8; }
+    .badge-rejected { background: #eceff1; color: #475569; border: 1px solid #d3d9de; }
 
-    code {
-        font-family: var(--mono) !important;
-        background: #fef3c7 !important;
-        color: #7c5a05 !important;
-        padding: 1px 7px !important;
-        border-radius: 5px !important;
-    }
-
-    [data-testid="stDataFrame"] {
-        border: 1px solid var(--border) !important;
-        border-radius: 14px !important;
-        overflow: hidden;
-    }
+    code { font-family: var(--mono) !important; background: #eef2f0 !important; color: #165445 !important; padding: 1px 6px !important; border-radius: 4px !important; }
+    [data-testid="stDataFrame"] { border: 1px solid var(--border) !important; border-radius: 10px !important; overflow: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -356,66 +229,39 @@ ADMIN_PASSCODE = get_admin_passcode()
 # Initialize database on app startup
 database.init_db()
 
-# --- HEADER SECTION ---
-st.markdown("""
-<div class="main-header">
-    <h1>🏢 Campus Hostel Residence Operations & Care Suite</h1>
-    <p>Digital Maintenance Dispatch • Warden Support • Resident Care Desk</p>
-</div>
-""", unsafe_allow_html=True)
-
-# Announcement Ticker
+# --- HEADER + TICKER (merged into one unit) ---
 latest_notices = database.get_all_notices()
 if latest_notices:
     top_n = latest_notices[0]
-    ticker_text = f"📢 WARDEN ANNOUNCEMENT: [{top_n['category']}] {top_n['title']} (Target: {top_n['target_block']}) • Emergency Desk: Ext 104"
+    ticker_text = f"📢 [{top_n['category']}] {top_n['title']} (Target: {top_n['target_block']}) &nbsp;•&nbsp; Emergency Desk: <b>Ext 104</b>"
 else:
-    ticker_text = "📢 WARDEN ANNOUNCEMENT: Block Maintenance Active • Warden Office: Ext 101 • Medical Room: Ext 108"
+    ticker_text = "📢 Block Maintenance Active &nbsp;•&nbsp; Warden Office: <b>Ext 101</b> &nbsp;•&nbsp; Medical Room: <b>Ext 108</b>"
 
-st.markdown(f'<div class="notice-banner">{ticker_text}</div>', unsafe_allow_html=True)
+st.markdown(f"""
+<div class="app-header">
+    <div class="head-top">
+        <h1>🏢 Campus Hostel Residence Operations &amp; Care Suite</h1>
+        <div class="head-sub">Digital Maintenance Dispatch • Warden Support • Resident Care Desk</div>
+    </div>
+    <div class="head-ticker">{ticker_text}</div>
+</div>
+""", unsafe_allow_html=True)
 
-# --- LIVE KPI DASHBOARD (main content) ---
+# --- UNIFIED STAT STRIP ---
 counts = database.get_grievance_counts()
 
-kpi_html = f"""
-<div class="kpi-grid">
-    <div class="kpi-card kpi-navy">
-        <div class="kpi-icon">🗂️</div>
-        <div>
-            <div class="kpi-value">{counts['total']}</div>
-            <div class="kpi-label">Total Tickets</div>
-        </div>
-    </div>
-    <div class="kpi-card kpi-gold">
-        <div class="kpi-icon">⏳</div>
-        <div>
-            <div class="kpi-value">{counts['pending']}</div>
-            <div class="kpi-label">Pending</div>
-        </div>
-    </div>
-    <div class="kpi-card kpi-teal">
-        <div class="kpi-icon">🔧</div>
-        <div>
-            <div class="kpi-value">{counts['in_progress']}</div>
-            <div class="kpi-label">In Progress</div>
-        </div>
-    </div>
-    <div class="kpi-card kpi-green">
-        <div class="kpi-icon">✅</div>
-        <div>
-            <div class="kpi-value">{counts['resolved']}</div>
-            <div class="kpi-label">Resolved</div>
-        </div>
-    </div>
-</div>
+stat_items = f"""
+    <div class="stat-item"><span class="stat-dot dot-total"></span><span class="stat-value">{counts['total']}</span><span class="stat-label">Total</span></div>
+    <div class="stat-item"><span class="stat-dot dot-pending"></span><span class="stat-value">{counts['pending']}</span><span class="stat-label">Pending</span></div>
+    <div class="stat-item"><span class="stat-dot dot-progress"></span><span class="stat-value">{counts['in_progress']}</span><span class="stat-label">In Progress</span></div>
+    <div class="stat-item"><span class="stat-dot dot-resolved"></span><span class="stat-value">{counts['resolved']}</span><span class="stat-label">Resolved</span></div>
 """
-st.markdown(kpi_html, unsafe_allow_html=True)
-
 if counts.get('emergency', 0) > 0:
-    st.markdown(
-        f'<div class="emergency-strip">🚨 {counts["emergency"]} Active Emergency Ticket(s) Require Immediate Attention</div>',
-        unsafe_allow_html=True
-    )
+    stat_items += f"""
+    <div class="stat-item is-alert"><span class="stat-dot dot-alert"></span><span class="stat-value">{counts['emergency']}</span><span class="stat-label">Emergency</span></div>
+    """
+
+st.markdown(f'<div class="stat-strip">{stat_items}</div>', unsafe_allow_html=True)
 
 # --- SIDEBAR NAVIGATION ---
 try:
