@@ -17,201 +17,231 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- THEME STATE ---
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = False
+
+_theme_col = st.sidebar.container()
+with _theme_col:
+    st.session_state.dark_mode = st.toggle(
+        "🌙 Dark Mode",
+        value=st.session_state.dark_mode,
+        key="theme_toggle"
+    )
+
+if st.session_state.dark_mode:
+    THEME = {
+        "bg": "#101317", "card": "#1a1e24", "border": "#2b3038",
+        "text": "#e7eaee", "text_muted": "#9099a6",
+        "input_bg": "#12151a", "accent": "#2dd4bf", "accent_dark": "#14b8a6",
+    }
+else:
+    THEME = {
+        "bg": "#f5f4f1", "card": "#ffffff", "border": "#e5e2db",
+        "text": "#1c1e24", "text_muted": "#6b6f76",
+        "input_bg": "#ffffff", "accent": "#1f6f5c", "accent_dark": "#165445",
+    }
+
 # Custom CSS Styling for Premium UI
-st.markdown("""
+st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap');
 
-    html, body, [class*="css"] { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    html, body, [class*="css"] {{ font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }}
 
-    :root {
-        --bg: #f5f4f1;
-        --card: #ffffff;
-        --border: #e5e2db;
-        --text: #1c1e24;
-        --text-muted: #6b6f76;
-        --accent: #1f6f5c;
-        --accent-dark: #165445;
+    :root {{
+        --bg: {THEME['bg']};
+        --card: {THEME['card']};
+        --border: {THEME['border']};
+        --text: {THEME['text']};
+        --text-muted: {THEME['text_muted']};
+        --input-bg: {THEME['input_bg']};
+        --accent: {THEME['accent']};
+        --accent-dark: {THEME['accent_dark']};
         --navy: #1c2b3a;
         --danger: #b3261e;
         --warning: #b45309;
         --success: #166534;
         --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
-    }
+    }}
 
-    .stApp { background: var(--bg) !important; }
+    .stApp {{ background: var(--bg) !important; transition: background 0.2s ease; }}
 
     .stApp .main h1, .stApp .main h2, .stApp .main h3, .stApp .main h4, .stApp .main h5, .stApp .main h6,
-    .stApp .main p, .stApp .main label, .stApp .main span, .stApp .main div {
+    .stApp .main p, .stApp .main label, .stApp .main span, .stApp .main div {{
         color: var(--text) !important;
-    }
-    .stApp .main h1, .stApp .main h2, .stApp .main h3 { letter-spacing: -0.02em; font-weight: 800 !important; }
+    }}
+    .stApp .main h1, .stApp .main h2, .stApp .main h3 {{ letter-spacing: -0.02em; font-weight: 800 !important; }}
 
     /* ---------- Header + ticker merged into ONE unit ---------- */
-    .app-header {
+    .app-header {{
         background: var(--navy);
         border-radius: 14px;
         overflow: hidden;
         margin-bottom: 24px;
         box-shadow: 0 6px 20px -10px rgba(28, 43, 58, 0.4);
-    }
-    .app-header .head-top {
-        padding: 26px 30px 20px;
-    }
-    .app-header h1 {
+    }}
+    .app-header .head-top {{ padding: 26px 30px 20px; }}
+    .app-header h1 {{
         color: #ffffff !important;
         font-size: 1.6rem;
         font-weight: 800;
         margin: 0;
         letter-spacing: -0.01em;
-    }
-    .app-header .head-sub {
-        color: #9aa5b1 !important;
-        font-size: 0.85rem;
-        margin-top: 5px;
-        font-weight: 500;
-    }
-    .app-header .head-ticker {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }}
+    .live-dot {{
+        width: 9px; height: 9px; border-radius: 50%;
+        background: #34d399;
+        box-shadow: 0 0 0 rgba(52, 211, 153, 0.6);
+        animation: pulse-live 2s infinite;
+        flex-shrink: 0;
+    }}
+    @keyframes pulse-live {{
+        0% {{ box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55); }}
+        70% {{ box-shadow: 0 0 0 8px rgba(52, 211, 153, 0); }}
+        100% {{ box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }}
+    }}
+    .app-header .head-sub {{ color: #9aa5b1 !important; font-size: 0.85rem; margin-top: 5px; font-weight: 500; }}
+    .app-header .head-ticker {{
         background: rgba(255,255,255,0.06);
         border-top: 1px solid rgba(255,255,255,0.08);
         padding: 10px 30px;
         font-size: 0.82rem;
         font-weight: 600;
         color: #d7dde3 !important;
-    }
-    .app-header .head-ticker b { color: var(--accent); font-weight: 700; }
+    }}
+    .app-header .head-ticker b {{ color: var(--accent); font-weight: 700; }}
 
-    /* ---------- Unified stat strip (replaces 4 separate KPI cards) ---------- */
-    .stat-strip {
+    /* ---------- Unified stat strip ---------- */
+    .stat-strip {{
         display: flex;
         background: var(--card);
         border: 1px solid var(--border);
         border-radius: 12px;
         margin-bottom: 24px;
         overflow: hidden;
-        box-shadow: 0 1px 2px rgba(28,43,58,0.04);
-    }
-    .stat-item {
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }}
+    .stat-item {{
         flex: 1;
         padding: 16px 20px;
         border-right: 1px solid var(--border);
         display: flex;
         align-items: baseline;
         gap: 8px;
-    }
-    .stat-item:last-child { border-right: none; }
-    .stat-dot {
-        width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-        margin-right: 2px;
-    }
-    .stat-value {
-        font-family: var(--mono);
-        font-size: 1.4rem;
-        font-weight: 700;
-        color: var(--text);
-    }
-    .stat-label {
-        font-size: 0.72rem;
-        font-weight: 600;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-    .stat-item.is-alert { background: #fdecea; }
-    .stat-item.is-alert .stat-value, .stat-item.is-alert .stat-label { color: var(--danger); }
+        transition: background 0.15s ease;
+    }}
+    .stat-item:hover {{ background: rgba(31, 111, 92, 0.05); }}
+    .stat-item:last-child {{ border-right: none; }}
+    .stat-dot {{ width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-right: 2px; }}
+    .stat-value {{ font-family: var(--mono); font-size: 1.4rem; font-weight: 700; color: var(--text); }}
+    .stat-label {{ font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }}
+    .stat-item.is-alert {{ background: rgba(179, 38, 30, 0.08); }}
+    .stat-item.is-alert:hover {{ background: rgba(179, 38, 30, 0.14); }}
+    .stat-item.is-alert .stat-value, .stat-item.is-alert .stat-label {{ color: var(--danger); }}
 
-    .dot-total { background: #64748b; }
-    .dot-pending { background: var(--warning); }
-    .dot-progress { background: #2563eb; }
-    .dot-resolved { background: var(--success); }
-    .dot-alert { background: var(--danger); }
+    .dot-total {{ background: #64748b; }}
+    .dot-pending {{ background: var(--warning); }}
+    .dot-progress {{ background: #2563eb; }}
+    .dot-resolved {{ background: var(--success); }}
+    .dot-alert {{ background: var(--danger); }}
 
-    /* ---------- Notices (student view) ---------- */
-    .notice-banner { display: none; } /* superseded by merged header ticker */
+    .notice-banner {{ display: none; }}
 
     /* ---------- Sidebar ---------- */
-    [data-testid="stSidebar"] { background: var(--navy) !important; }
+    [data-testid="stSidebar"] {{ background: var(--navy) !important; }}
     [data-testid="stSidebar"] *, [data-testid="stSidebar"] label, [data-testid="stSidebar"] label p,
     [data-testid="stSidebar"] span, [data-testid="stSidebar"] p,
-    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{
         color: #dfe4e9 !important; font-weight: 600 !important;
-    }
-    [data-testid="stSidebar"] h3 {
-        color: #8a94a0 !important; font-size: 0.75rem !important;
-        text-transform: uppercase; letter-spacing: 0.06em;
-    }
-    [data-testid="stSidebar"] div[data-testid="stAlert"] {
+    }}
+    [data-testid="stSidebar"] h3 {{ color: #8a94a0 !important; font-size: 0.75rem !important; text-transform: uppercase; letter-spacing: 0.06em; }}
+    [data-testid="stSidebar"] div[data-testid="stAlert"] {{
         background-color: rgba(255,255,255,0.05) !important;
         border: 1px solid rgba(255,255,255,0.1) !important;
         border-left: 3px solid var(--accent) !important;
         border-radius: 8px !important;
-    }
-    [data-testid="stSidebar"] div[data-testid="stAlert"] * { color: #d7dde3 !important; font-size: 0.82rem !important; }
-    [data-testid="stSidebar"] div[data-testid="stMetric"] * { color: #f1f5f9 !important; }
+    }}
+    [data-testid="stSidebar"] div[data-testid="stAlert"] * {{ color: #d7dde3 !important; font-size: 0.82rem !important; }}
+    [data-testid="stSidebar"] div[data-testid="stMetric"] * {{ color: #f1f5f9 !important; }}
+
+    /* Dark-mode toggle switch itself, styled to sit nicely at top of sidebar */
+    [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {{ font-size: 0.85rem !important; }}
 
     /* ---------- Form controls ---------- */
-    input, textarea, select {
-        color: var(--text) !important; background-color: #ffffff !important;
-        border: 1px solid var(--border) !important; border-radius: 8px !important;
-    }
-    input:focus, textarea:focus, select:focus {
+    input, textarea, select {{
+        color: var(--text) !important;
+        background-color: var(--input-bg) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 8px !important;
+    }}
+    input:focus, textarea:focus, select:focus {{
         border-color: var(--accent) !important;
         box-shadow: 0 0 0 3px rgba(31, 111, 92, 0.14) !important;
-    }
+    }}
     div[data-testid="InputInstructions"], div[data-testid="stInputInstruction"],
     small[data-testid="stInputInstruction"], [data-testid="stInputInstruction"],
-    .stTextInput small, .stTextArea small, .stSelectbox small {
+    .stTextInput small, .stTextArea small, .stSelectbox small {{
         display: none !important; visibility: hidden !important; opacity: 0 !important;
         height: 0 !important; margin: 0 !important; padding: 0 !important;
-    }
+    }}
 
     /* ---------- Buttons ---------- */
-    .stButton > button, .stFormSubmitButton > button {
+    .stButton > button, .stFormSubmitButton > button {{
         border-radius: 8px !important; font-weight: 600 !important;
         border: 1px solid var(--border) !important; transition: all 0.15s ease !important;
-    }
-    .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] {
+    }}
+    .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] {{
         background: var(--accent) !important; border: 1px solid var(--accent-dark) !important;
         box-shadow: 0 3px 10px -3px rgba(31, 111, 92, 0.5) !important;
-    }
-    .stButton > button[kind="primary"]:hover, .stFormSubmitButton > button[kind="primary"]:hover {
-        background: var(--accent-dark) !important;
-    }
+    }}
+    .stButton > button[kind="primary"]:hover, .stFormSubmitButton > button[kind="primary"]:hover {{
+        background: var(--accent-dark) !important; transform: translateY(-1px);
+    }}
 
     /* ---------- Tabs ---------- */
-    button[data-baseweb="tab"] { font-weight: 600 !important; font-size: 0.92rem !important; color: var(--text-muted) !important; }
-    button[data-baseweb="tab"][aria-selected="true"] { color: var(--accent) !important; }
-    div[data-baseweb="tab-highlight"] { background-color: var(--accent) !important; height: 3px !important; }
+    button[data-baseweb="tab"] {{ font-weight: 600 !important; font-size: 0.92rem !important; color: var(--text-muted) !important; }}
+    button[data-baseweb="tab"][aria-selected="true"] {{ color: var(--accent) !important; }}
+    div[data-baseweb="tab-highlight"] {{ background-color: var(--accent) !important; height: 3px !important; }}
 
-    /* ---------- Warden metric cards (unchanged Streamlit ones) ---------- */
-    div[data-testid="stMetric"] {
+    /* ---------- Metric cards ---------- */
+    div[data-testid="stMetric"] {{
         background-color: var(--card) !important; border: 1px solid var(--border) !important;
         padding: 14px 16px !important; border-radius: 10px !important;
-        box-shadow: 0 1px 2px rgba(28,43,58,0.04) !important;
-    }
-    div[data-testid="stMetricValue"] { color: var(--text) !important; font-family: var(--mono) !important; font-size: 1.5rem !important; font-weight: 700 !important; }
-    div[data-testid="stMetricLabel"] { color: var(--text-muted) !important; font-weight: 600 !important; text-transform: uppercase; font-size: 0.7rem !important; letter-spacing: 0.05em; }
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+    }}
+    div[data-testid="stMetricValue"] {{ color: var(--text) !important; font-family: var(--mono) !important; font-size: 1.5rem !important; font-weight: 700 !important; }}
+    div[data-testid="stMetricLabel"] {{ color: var(--text-muted) !important; font-weight: 600 !important; text-transform: uppercase; font-size: 0.7rem !important; letter-spacing: 0.05em; }}
 
     /* ---------- Expanders ---------- */
-    div[data-testid="stExpander"] { border: 1px solid var(--border) !important; border-radius: 10px !important; box-shadow: 0 1px 2px rgba(28,43,58,0.03) !important; overflow: hidden; }
-    div[data-testid="stExpander"] summary { font-weight: 700 !important; font-size: 0.9rem !important; }
+    div[data-testid="stExpander"] {{ border: 1px solid var(--border) !important; border-radius: 10px !important; box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important; overflow: hidden; }}
+    div[data-testid="stExpander"] summary {{ font-weight: 700 !important; font-size: 0.9rem !important; }}
+    div[data-testid="stExpander"]:hover {{ border-color: var(--accent) !important; }}
 
     /* ---------- Notice board cards ---------- */
-    .card-box {
+    .card-box {{
         background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--accent);
         border-radius: 10px; padding: 16px 18px; margin-bottom: 12px;
-        box-shadow: 0 1px 2px rgba(28,43,58,0.03);
-    }
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+        transition: transform 0.15s ease;
+    }}
+    .card-box:hover {{ transform: translateX(2px); }}
 
     /* ---------- Status badges ---------- */
-    .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
-    .badge-pending { background: #fdecea; color: #b3261e; border: 1px solid #f3c6c2; }
-    .badge-progress { background: #fef3e2; color: #b45309; border: 1px solid #fbd8a3; }
-    .badge-resolved { background: #e6f4ea; color: #166534; border: 1px solid #bbe3c8; }
-    .badge-rejected { background: #eceff1; color: #475569; border: 1px solid #d3d9de; }
+    .badge {{ display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }}
+    .badge-pending {{ background: #fdecea; color: #b3261e; border: 1px solid #f3c6c2; }}
+    .badge-progress {{ background: #fef3e2; color: #b45309; border: 1px solid #fbd8a3; }}
+    .badge-resolved {{ background: #e6f4ea; color: #166534; border: 1px solid #bbe3c8; }}
+    .badge-rejected {{ background: #eceff1; color: #475569; border: 1px solid #d3d9de; }}
 
-    code { font-family: var(--mono) !important; background: #eef2f0 !important; color: #165445 !important; padding: 1px 6px !important; border-radius: 4px !important; }
-    [data-testid="stDataFrame"] { border: 1px solid var(--border) !important; border-radius: 10px !important; overflow: hidden; }
+    code {{ font-family: var(--mono) !important; background: rgba(31,111,92,0.12) !important; color: var(--accent) !important; padding: 1px 6px !important; border-radius: 4px !important; }}
+    [data-testid="stDataFrame"] {{ border: 1px solid var(--border) !important; border-radius: 10px !important; overflow: hidden; }}
+
+    /* ---------- Empty states ---------- */
+    div[data-testid="stAlert"] {{ border-radius: 10px !important; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -240,7 +270,7 @@ else:
 st.markdown(f"""
 <div class="app-header">
     <div class="head-top">
-        <h1>🏢 Campus Hostel Residence Operations &amp; Care Suite</h1>
+        <h1><span class="live-dot"></span>🏢 Campus Hostel Residence Operations &amp; Care Suite</h1>
         <div class="head-sub">Digital Maintenance Dispatch • Warden Support • Resident Care Desk</div>
     </div>
     <div class="head-ticker">{ticker_text}</div>
