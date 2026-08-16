@@ -1,4 +1,8 @@
+import sys
 import database
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 print("--- Testing Database Migration & Operations ---")
 database.init_db()
@@ -43,7 +47,55 @@ search_results = database.get_all_grievances(search_query="handle")
 print(f"Search results for 'handle': {len(search_results)}")
 assert len(search_results) > 0
 
+# Test dual search by Room Number & Student Name (Forgot Ticket ID flow)
+room_and_name_results = database.get_grievances_by_room_and_name("A-101", "John Doe")
+print(f"Dual room/name search results: {len(room_and_name_results)}")
+assert len(room_and_name_results) >= 1
+assert any(g['grievance_id'] == g_id for g in room_and_name_results)
+
+# Verify privacy rule: mismatching room or name returns 0 results
+assert len(database.get_grievances_by_room_and_name("B-999", "John Doe")) == 0
+assert len(database.get_grievances_by_room_and_name("A-101", "Unknown Person")) == 0
+
 # Clean up test entry
 database.delete_grievance(g_id)
+
+# Test Notice Timer Creation & Auto Expiration Purge
+permanent_notice_id = database.create_notice("Permanent Notice", "Valid indefinitely", "General", "All Blocks", expiry_hours=0)
+expired_notice_id = database.create_notice("Expired Test Notice", "Should be auto deleted", "General", "All Blocks", expiry_hours=-1)
+
+active_notices = database.get_all_notices()
+assert any(n['notice_id'] == permanent_notice_id for n in active_notices)
+assert not any(n['notice_id'] == expired_notice_id for n in active_notices)
+print("Notice active duration & auto-cleanup verified.")
+
+database.delete_notice(permanent_notice_id)
+
+# Test Leave Application Creation & Warden Gate Pass Issuance
+leave_id = database.create_leave_application(
+    name="Test Leave Student",
+    block="BH-1",
+    room="B-204",
+    phone="+91 9876543210",
+    parent_phone="+91 9123456789",
+    reason="Home Visit",
+    destination="New Delhi",
+    from_date="2026-08-20",
+    to_date="2026-08-22",
+    teacher_name="Prof. R.K. Verma"
+)
+print(f"Created Leave Application ID: {leave_id}")
+
+leave_rec = database.get_leave_application_by_id(leave_id)
+assert leave_rec['granting_teacher'] == "Prof. R.K. Verma"
+assert leave_rec['status'] == "Pending Warden Approval"
+
+database.update_leave_status(leave_id, "Approved / Gate Pass Issued", warden_remarks="Approved", gate_pass_code="GP-2026-X001")
+updated_leave = database.get_leave_application_by_id(leave_id)
+assert updated_leave['status'] == "Approved / Gate Pass Issued"
+assert updated_leave['gate_pass_code'] == "GP-2026-X001"
+print("Leave Application & Gate Pass issuance verified.")
+
+database.delete_leave_application(leave_id)
 
 print("--- All Database Verification Tests Passed! ---")
