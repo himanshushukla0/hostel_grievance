@@ -27,30 +27,25 @@ st.markdown("""
     }
 
     :root {
-        --bg: #f1f5f9;
+        --bg: #f4f6fb;
         --card: #ffffff;
-        --border: #dbe2ea;
+        --border: #e2e8f0;
         --text: #0f172a;
         --text-muted: #64748b;
-        --accent: #2563eb;
-        --accent-dark: #1d4ed8;
+        --accent: #4f46e5;
+        --accent-2: #2563eb;
         --danger: #dc2626;
         --warning: #d97706;
-        --success: #15803d;
+        --success: #16a34a;
         --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     }
 
-    .stApp {
-        background:
-            radial-gradient(circle at 1px 1px, rgba(15,23,42,0.035) 1px, transparent 0) 0 0 / 22px 22px,
-            var(--bg) !important;
-    }
+    .stApp { background: var(--bg) !important; }
 
     .stApp .main h1, .stApp .main h2, .stApp .main h3, .stApp .main h4, .stApp .main h5, .stApp .main h6,
     .stApp .main p, .stApp .main label, .stApp .main span, .stApp .main div {
         color: var(--text) !important;
     }
-
     .stApp .main h1, .stApp .main h2, .stApp .main h3 {
         letter-spacing: -0.02em;
         font-weight: 800 !important;
@@ -58,39 +53,25 @@ st.markdown("""
 
     /* ---------- Header ---------- */
     .main-header {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0f172a 100%) !important;
-        padding: 28px 32px;
-        border-radius: 14px;
-        margin-bottom: 14px;
-        border: 1px solid #1e293b;
-        border-top: 3px solid var(--accent);
-        box-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.5);
-        position: relative;
-        overflow: hidden;
-    }
-    .main-header::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background-image: linear-gradient(90deg, rgba(37,99,235,0.08) 1px, transparent 1px);
-        background-size: 40px 100%;
-        pointer-events: none;
+        background: linear-gradient(120deg, #4338ca 0%, #3730a3 45%, #0f172a 100%) !important;
+        padding: 30px 34px;
+        border-radius: 18px;
+        margin-bottom: 16px;
+        box-shadow: 0 16px 40px -16px rgba(67, 56, 202, 0.45);
     }
     .main-header h1 {
         color: #ffffff !important;
-        font-size: 1.65rem;
+        font-size: 1.75rem;
         font-weight: 800;
         margin: 0;
         letter-spacing: -0.01em;
     }
     .main-header p {
-        color: #94a3b8 !important;
-        font-size: 0.85rem;
-        font-family: var(--mono);
+        color: #c7d2fe !important;
+        font-size: 0.88rem;
         margin-top: 6px;
         margin-bottom: 0;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
+        font-weight: 500;
     }
 
     /* ---------- Notice ticker ---------- */
@@ -99,18 +80,85 @@ st.markdown("""
         border: 1px solid #fde68a !important;
         border-left: 4px solid var(--warning) !important;
         color: #92400e !important;
-        padding: 11px 18px;
-        border-radius: 8px;
+        padding: 12px 18px;
+        border-radius: 10px;
         font-weight: 600;
-        font-size: 0.85rem;
+        font-size: 0.88rem;
         margin-bottom: 24px;
+    }
+
+    /* ---------- KPI dashboard row (main content) ---------- */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 28px;
+    }
+    @media (max-width: 900px) {
+        .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .kpi-card {
+        background: var(--card);
+        border-radius: 16px;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        border: 1px solid var(--border);
+        box-shadow: 0 4px 14px -6px rgba(15, 23, 42, 0.08);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .kpi-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 26px -8px rgba(15, 23, 42, 0.18);
+    }
+    .kpi-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        flex-shrink: 0;
+    }
+    .kpi-value {
         font-family: var(--mono);
+        font-size: 1.9rem;
+        font-weight: 800;
+        line-height: 1;
+        color: var(--text);
+    }
+    .kpi-label {
+        font-size: 0.74rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-top: 5px;
+    }
+    .kpi-blue .kpi-icon { background: #dbeafe; color: #1d4ed8; }
+    .kpi-blue { border-top: 3px solid var(--accent-2); }
+    .kpi-amber .kpi-icon { background: #fef3c7; color: #b45309; }
+    .kpi-amber { border-top: 3px solid var(--warning); }
+    .kpi-violet .kpi-icon { background: #ede9fe; color: #6d28d9; }
+    .kpi-violet { border-top: 3px solid var(--accent); }
+    .kpi-green .kpi-icon { background: #dcfce7; color: #15803d; }
+    .kpi-green { border-top: 3px solid var(--success); }
+
+    .emergency-strip {
+        background: linear-gradient(90deg, #dc2626, #b91c1c);
+        color: #fff;
+        padding: 13px 18px;
+        border-radius: 12px;
+        font-weight: 700;
+        margin-bottom: 22px;
+        box-shadow: 0 8px 22px -6px rgba(220, 38, 38, 0.5);
     }
 
     /* ---------- Sidebar ---------- */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0f172a 0%, #111827 100%) !important;
-        border-right: 1px solid #1e293b;
+        background: linear-gradient(180deg, #1e1b4b 0%, #0f172a 100%) !important;
     }
     [data-testid="stSidebar"] *,
     [data-testid="stSidebar"] label,
@@ -123,46 +171,18 @@ st.markdown("""
         color: #e2e8f0 !important;
         font-weight: 600 !important;
     }
-    [data-testid="stSidebar"] h3 {
-        font-size: 0.75rem !important;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #64748b !important;
-        margin-top: 4px;
-    }
     [data-testid="stSidebar"] div[data-testid="stAlert"] {
-        background-color: #0b1220 !important;
-        border: 1px solid #1e293b !important;
-        border-left: 3px solid var(--accent) !important;
-        border-radius: 8px !important;
+        background-color: rgba(255,255,255,0.06) !important;
+        border: 1px solid rgba(255,255,255,0.12) !important;
+        border-left: 3px solid #818cf8 !important;
+        border-radius: 10px !important;
     }
     [data-testid="stSidebar"] div[data-testid="stAlert"] * {
-        color: #cbd5e1 !important;
-        font-family: var(--mono);
-        font-size: 0.78rem !important;
-    }
-
-    /* Sidebar metric tiles — explicitly forced so text is never invisible */
-    [data-testid="stSidebar"] div[data-testid="stMetric"] {
-        background: #0b1220 !important;
-        border: 1px solid #1e293b !important;
-        border-radius: 8px !important;
-        padding: 10px 12px !important;
+        color: #e0e7ff !important;
+        font-size: 0.82rem !important;
     }
     [data-testid="stSidebar"] div[data-testid="stMetric"] * {
         color: #f1f5f9 !important;
-    }
-    [data-testid="stSidebar"] div[data-testid="stMetricValue"] {
-        font-family: var(--mono) !important;
-        font-size: 1.4rem !important;
-        font-weight: 700 !important;
-        color: #ffffff !important;
-    }
-    [data-testid="stSidebar"] div[data-testid="stMetricLabel"] {
-        font-size: 0.68rem !important;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: #94a3b8 !important;
     }
 
     /* ---------- Form controls ---------- */
@@ -170,11 +190,11 @@ st.markdown("""
         color: var(--text) !important;
         background-color: #ffffff !important;
         border: 1px solid var(--border) !important;
-        border-radius: 8px !important;
+        border-radius: 10px !important;
     }
     input:focus, textarea:focus, select:focus {
         border-color: var(--accent) !important;
-        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+        box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12) !important;
     }
     div[data-testid="InputInstructions"],
     div[data-testid="stInputInstruction"],
@@ -193,19 +213,19 @@ st.markdown("""
 
     /* ---------- Buttons ---------- */
     .stButton > button, .stFormSubmitButton > button {
-        border-radius: 8px !important;
+        border-radius: 10px !important;
         font-weight: 600 !important;
         border: 1px solid var(--border) !important;
         transition: all 0.15s ease !important;
     }
     .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] {
-        background: var(--accent) !important;
-        border: 1px solid var(--accent-dark) !important;
-        box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.5) !important;
+        background: linear-gradient(135deg, var(--accent-2), var(--accent)) !important;
+        border: none !important;
+        box-shadow: 0 6px 16px -4px rgba(79, 70, 229, 0.5) !important;
     }
     .stButton > button[kind="primary"]:hover, .stFormSubmitButton > button[kind="primary"]:hover {
-        background: var(--accent-dark) !important;
         transform: translateY(-1px);
+        box-shadow: 0 10px 22px -4px rgba(79, 70, 229, 0.6) !important;
     }
 
     /* ---------- Tabs ---------- */
@@ -222,14 +242,14 @@ st.markdown("""
         height: 3px !important;
     }
 
-    /* ---------- Main-area metric cards ---------- */
+    /* ---------- Main-area metric cards (Warden dashboard) ---------- */
     div[data-testid="stMetric"] {
         background-color: var(--card) !important;
         border: 1px solid var(--border) !important;
         border-top: 3px solid var(--accent) !important;
         padding: 14px 16px !important;
-        border-radius: 10px !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 14px -6px rgba(15,23,42,0.08) !important;
     }
     div[data-testid="stMetricValue"] {
         color: var(--text) !important;
@@ -248,14 +268,13 @@ st.markdown("""
     /* ---------- Expanders (ticket / leave cards) ---------- */
     div[data-testid="stExpander"] {
         border: 1px solid var(--border) !important;
-        border-radius: 10px !important;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
+        border-radius: 14px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.03) !important;
         overflow: hidden;
     }
     div[data-testid="stExpander"] summary {
         font-weight: 700 !important;
-        font-family: var(--mono);
-        font-size: 0.88rem !important;
+        font-size: 0.92rem !important;
     }
 
     /* ---------- Notice board cards ---------- */
@@ -263,66 +282,42 @@ st.markdown("""
         background: var(--card);
         border: 1px solid var(--border);
         border-left: 4px solid var(--accent);
-        border-radius: 10px;
-        padding: 16px 18px;
+        border-radius: 14px;
+        padding: 18px 20px;
         margin-bottom: 14px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-        transition: box-shadow 0.15s ease;
+        box-shadow: 0 4px 14px -6px rgba(15,23,42,0.06);
+        transition: box-shadow 0.15s ease, transform 0.15s ease;
     }
     .card-box:hover {
-        box-shadow: 0 6px 16px -6px rgba(15,23,42,0.15);
+        box-shadow: 0 10px 24px -8px rgba(15,23,42,0.15);
+        transform: translateY(-2px);
     }
 
     /* ---------- Status badges ---------- */
     .badge {
         display: inline-block;
-        padding: 3px 11px;
+        padding: 4px 12px;
         border-radius: 999px;
-        font-size: 0.72rem;
+        font-size: 0.74rem;
         font-weight: 700;
-        font-family: var(--mono);
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
+        letter-spacing: 0.02em;
     }
-    .badge::before {
-        content: "●";
-        margin-right: 5px;
-        font-size: 0.6rem;
-    }
-    .badge-pending {
-        background: #fee2e2;
-        color: #991b1b;
-        border: 1px solid #fecaca;
-    }
-    .badge-progress {
-        background: #fef3c7;
-        color: #92400e;
-        border: 1px solid #fde68a;
-    }
-    .badge-resolved {
-        background: #dcfce7;
-        color: #166534;
-        border: 1px solid #bbf7d0;
-    }
-    .badge-rejected {
-        background: #e2e8f0;
-        color: #475569;
-        border: 1px solid #cbd5e1;
-    }
+    .badge-pending { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .badge-progress { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .badge-resolved { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .badge-rejected { background: #e2e8f0; color: #475569; border: 1px solid #cbd5e1; }
 
-    /* ---------- Ticket / Leave IDs in monospace wherever they appear ---------- */
     code {
         font-family: var(--mono) !important;
-        background: #eef2f7 !important;
-        color: #1e293b !important;
-        padding: 1px 6px !important;
-        border-radius: 4px !important;
+        background: #eef2ff !important;
+        color: #3730a3 !important;
+        padding: 1px 7px !important;
+        border-radius: 5px !important;
     }
 
-    /* ---------- Dataframe polish ---------- */
     [data-testid="stDataFrame"] {
         border: 1px solid var(--border) !important;
-        border-radius: 10px !important;
+        border-radius: 14px !important;
         overflow: hidden;
     }
 </style>
