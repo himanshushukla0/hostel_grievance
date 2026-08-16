@@ -1,6 +1,25 @@
+import os
 import sqlite3
 import datetime
 from contextlib import contextmanager
+
+# ==========================================
+# ☁️ SUPABASE CLOUD CONFIGURATION
+# ==========================================
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://wtfartnzuwdixoniufdz.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_7CLKY_ttSdt-aKKYKytvIg_11jrm6qM")
+
+supabase = None
+USE_SUPABASE = False
+
+try:
+    from supabase import create_client, Client
+    if SUPABASE_URL and SUPABASE_KEY:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        USE_SUPABASE = True
+except Exception:
+    supabase = None
+    USE_SUPABASE = False
 
 DB_FILE = 'hostel_care.db'
 
@@ -105,7 +124,7 @@ def init_db():
 
 
 def create_grievance(name, room, category, description, block_name="BH-1", priority="Normal", suggestion=""):
-    """Insert a new grievance into the database and return its ID."""
+    """Insert a new grievance into the database and sync to Supabase if active."""
     with get_db() as conn:
         cursor = conn.cursor()
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -117,6 +136,26 @@ def create_grievance(name, room, category, description, block_name="BH-1", prior
         
         grievance_id = cursor.lastrowid
         conn.commit()
+
+        if USE_SUPABASE and supabase:
+            try:
+                supabase.table("Grievances").insert({
+                    "grievance_id": grievance_id,
+                    "student_name": name,
+                    "room_number": room,
+                    "category": category,
+                    "description": description,
+                    "date_submitted": now,
+                    "status": "Pending",
+                    "last_updated": now,
+                    "block_name": block_name,
+                    "priority": priority,
+                    "assigned_staff": "",
+                    "suggestion": suggestion
+                }).execute()
+            except Exception:
+                pass
+
         return grievance_id
 
 def escape_like(string):
