@@ -62,7 +62,8 @@ def init_db():
                 block_name TEXT DEFAULT 'BH-1',
                 priority TEXT DEFAULT 'Normal',
                 assigned_staff TEXT DEFAULT '',
-                suggestion TEXT DEFAULT ''
+                suggestion TEXT DEFAULT '',
+                photo_path TEXT DEFAULT ''
             )
         ''')
         
@@ -80,6 +81,8 @@ def init_db():
             cursor.execute("ALTER TABLE Grievances ADD COLUMN assigned_staff TEXT DEFAULT ''")
         if 'suggestion' not in columns:
             cursor.execute("ALTER TABLE Grievances ADD COLUMN suggestion TEXT DEFAULT ''")
+        if 'photo_path' not in columns:
+            cursor.execute("ALTER TABLE Grievances ADD COLUMN photo_path TEXT DEFAULT ''")
         
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS Notices (
@@ -123,16 +126,16 @@ def init_db():
         conn.commit()
 
 
-def create_grievance(name, room, category, description, block_name="BH-1", priority="Normal", suggestion=""):
+def create_grievance(name, room, category, description, block_name="BH-1", priority="Normal", suggestion="", photo_path=""):
     """Insert a new grievance into the database and sync to Supabase if active."""
     with get_db() as conn:
         cursor = conn.cursor()
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         cursor.execute('''
-            INSERT INTO Grievances (student_name, room_number, category, description, date_submitted, last_updated, block_name, priority, assigned_staff, suggestion)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?)
-        ''', (name, room, category, description, now, now, block_name, priority, suggestion))
+            INSERT INTO Grievances (student_name, room_number, category, description, date_submitted, last_updated, block_name, priority, assigned_staff, suggestion, photo_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?)
+        ''', (name, room, category, description, now, now, block_name, priority, suggestion, photo_path or ""))
         
         grievance_id = cursor.lastrowid
         conn.commit()
@@ -151,7 +154,8 @@ def create_grievance(name, room, category, description, block_name="BH-1", prior
                     "block_name": block_name,
                     "priority": priority,
                     "assigned_staff": "",
-                    "suggestion": suggestion
+                    "suggestion": suggestion,
+                    "photo_path": photo_path or ""
                 }).execute()
             except Exception:
                 pass
