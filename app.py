@@ -200,9 +200,10 @@ if counts.get('emergency', 0) > 0:
 if portal_mode == "🎓 Student Resident Portal":
     st.header("🎓 Student Resident Desk")
     
-    tab_submit, tab_track, tab_notices = st.tabs([
+    tab_submit, tab_track, tab_leave, tab_notices = st.tabs([
         "📝 Register Complaint", 
         "🔍 Track Status", 
+        "🌴 Leave & Gate Pass",
         "📢 Campus Notices"
     ])
     
@@ -211,7 +212,7 @@ if portal_mode == "🎓 Student Resident Portal":
         st.subheader("Submit Maintenance / Repair Request")
         st.caption("Please fill in accurate details so our maintenance team can respond promptly.")
         
-        with st.form("grievance_form", clear_on_submit=True):
+        with st.form("grievance_form", clear_on_submit=False):
             col1, col2 = st.columns(2)
             
             with col1:
@@ -256,7 +257,7 @@ if portal_mode == "🎓 Student Resident Portal":
             
             if submitted:
                 if not student_name.strip() or not room_number.strip() or not description.strip():
-                    st.error("⚠️ Please fill in all required fields (Name, Room Number, and Description).")
+                    st.error("⚠️ Form incomplete! Please fill in all required fields (* Name, Room Number, and Description) before submitting.")
                 else:
                     clean_block = block_full.split(" (")[0] if " (" in block_full else block_full
                     gid = database.create_grievance(
@@ -275,29 +276,57 @@ if portal_mode == "🎓 Student Resident Portal":
     with tab_track:
         st.subheader("Search & Track Complaint Status")
         
-        search_col1, search_col2 = st.columns([1, 3])
-        with search_col1:
-            search_by = st.radio("Search By", ["Grievance Ticket ID", "Room Number / Student Name"])
+        search_by = st.radio(
+            "Select Search Method", 
+            ["🎫 Grievance Ticket ID (Default)", "🔑 Forgot Ticket ID? Search by Room Number & Student Name"],
+            horizontal=True
+        )
         
-        with search_col2:
-            search_query = st.text_input("Enter Ticket ID or Room/Name to Search", placeholder="e.g. 101 or B-204...")
-            search_btn = st.button("🔍 Search Database", use_container_width=True)
+        results = None
+        searched = False
         
-        if search_query or search_btn:
-            results = []
-            if "Ticket ID" in search_by:
-                try:
-                    gid = int(search_query.strip().replace("#", ""))
-                    g = database.get_grievance_by_id(gid)
-                    if g:
-                        results = [g]
-                except ValueError:
-                    st.error("Please enter a valid numeric Ticket ID.")
-            else:
-                results = database.get_grievance_by_room_or_name(search_query.strip())
+        if "Ticket ID (Default)" in search_by:
+            search_col1, search_col2 = st.columns([3, 1])
+            with search_col1:
+                search_query = st.text_input("Enter Ticket ID", placeholder="e.g. 101 or #105", key="track_ticket_id")
+            with search_col2:
+                st.write("")
+                st.write("")
+                search_btn = st.button("🔍 Search Ticket", use_container_width=True, key="btn_search_ticket")
             
+            if search_btn:
+                searched = True
+                if not search_query.strip():
+                    st.warning("Please enter a Ticket ID before searching.")
+                else:
+                    try:
+                        gid = int(search_query.strip().replace("#", ""))
+                        g = database.get_grievance_by_id(gid)
+                        results = [g] if g else []
+                    except ValueError:
+                        st.error("Please enter a valid numeric Ticket ID (e.g. 101).")
+        else:
+            st.info("⚠️ Searching by only Name or Room Number is not allowed for privacy. Please enter both your **Room Number** and **Student Name** below.")
+            f_col1, f_col2, f_col3 = st.columns([1.5, 2, 1])
+            with f_col1:
+                room_query = st.text_input("Room Number *", placeholder="e.g. B-204", key="forgot_room_num")
+            with f_col2:
+                name_query = st.text_input("Student Name *", placeholder="e.g. Alice Smith", key="forgot_std_name")
+            with f_col3:
+                st.write("")
+                st.write("")
+                forgot_btn = st.button("🔍 Find Complaints", use_container_width=True, key="btn_forgot_search")
+                
+            if forgot_btn:
+                searched = True
+                if not room_query.strip() or not name_query.strip():
+                    st.error("❌ Both **Room Number** and **Student Name** are required to search without a Ticket ID.")
+                else:
+                    results = database.get_grievances_by_room_and_name(room_query.strip(), name_query.strip())
+        
+        if searched and results is not None:
             if results:
-                st.markdown(f"Found **{len(results)}** record(s):")
+                st.markdown(f"Found **{len(results)}** matching complaint record(s):")
                 for item in results:
                     st_val = item['status']
                     badge_class = "badge-pending"
@@ -321,9 +350,128 @@ if portal_mode == "🎓 Student Resident Portal":
                         st.markdown(f"**Warden Remarks:** {item.get('admin_remarks') or 'Awaiting review'}")
                         st.caption(f"Last updated: {item.get('last_updated')}")
             else:
-                st.warning("No matching grievance records found. Please check your search term.")
+                st.warning("No matching grievance records found. Please check your details and try again.")
 
-    # TAB 3: CAMPUS NOTICES
+    # TAB 3: LEAVE & GATE PASS
+    with tab_leave:
+        st.subheader("🌴 Student Hostel Leave & Outstation Pass Desk")
+        st.caption("Submit outstation leave requests approved by your respective faculty/teacher for Warden authorization.")
+        
+        leave_sub_tab1, leave_sub_tab2 = st.tabs(["📝 Apply for Leave", "🔍 Track Leave Application & Gate Pass"])
+        
+        with leave_sub_tab1:
+            with st.form("leave_application_form", clear_on_submit=False):
+                l_c1, l_c2 = st.columns(2)
+                with l_c1:
+                    l_student_name = st.text_input("Student Full Name *", placeholder="e.g. Aniket Sharma", key="leave_std_name")
+                    l_block_full = st.selectbox("Hostel Block *", ["BH-1 (Boys Hostel 1)", "BH-2 (Boys Hostel 2)", "BH-3 (Boys Hostel 3)", "GH-1 (Girls Hostel 1)", "GH-2 (Girls Hostel 2)", "IH-1 (International Hostel)"], key="leave_block")
+                    l_room = st.text_input("Room Number *", placeholder="e.g. B-204", key="leave_room")
+                    l_phone = st.text_input("Student Mobile Number *", placeholder="e.g. +91 9876543210", key="leave_phone")
+                with l_c2:
+                    l_parent_phone = st.text_input("Parent / Emergency Phone *", placeholder="e.g. +91 9123456789", key="leave_parent_phone")
+                    l_teacher = st.text_input("Granting Teacher / Faculty Approval Name *", placeholder="e.g. Prof. R.K. Verma (HOD / Mentor)", key="leave_teacher")
+                    l_destination = st.text_input("Outstation Destination City / Address *", placeholder="e.g. New Delhi / Home", key="leave_dest")
+                    l_reason = st.selectbox("Reason for Leave *", ["🏡 Home Visit", "🏥 Medical / Emergency", "🎓 Academic Conference / Exam", "💼 Personal / Family Event", "🚌 Official College Tour"])
+
+                l_date_c1, l_date_c2 = st.columns(2)
+                with l_date_c1:
+                    from_d = st.date_input("Leave Departure Date *", datetime.date.today())
+                with l_date_c2:
+                    to_d = st.date_input("Expected Return Date *", datetime.date.today() + datetime.timedelta(days=2))
+
+                leave_submitted = st.form_submit_button("🌴 Submit Leave Application to Warden", type="primary", use_container_width=True)
+                if leave_submitted:
+                    if not l_student_name.strip() or not l_room.strip() or not l_phone.strip() or not l_parent_phone.strip() or not l_teacher.strip() or not l_destination.strip():
+                        st.error("⚠️ Please fill in all required fields including Granting Teacher Name and Parent Phone.")
+                    elif to_d < from_d:
+                        st.error("❌ Return Date cannot be before Departure Date.")
+                    else:
+                        clean_block = l_block_full.split(" (")[0] if " (" in l_block_full else l_block_full
+                        from_str = from_d.strftime("%Y-%m-%d")
+                        to_str = to_d.strftime("%Y-%m-%d")
+                        
+                        lid = database.create_leave_application(
+                            name=l_student_name.strip(),
+                            block=clean_block,
+                            room=l_room.strip(),
+                            phone=l_phone.strip(),
+                            parent_phone=l_parent_phone.strip(),
+                            reason=l_reason,
+                            destination=l_destination.strip(),
+                            from_date=from_str,
+                            to_date=to_str,
+                            teacher_name=l_teacher.strip()
+                        )
+                        st.balloons()
+                        st.success(f"🎉 **Leave Application Submitted!**\n\nYour Leave Ticket ID is **#L-{lid}**. You can track status & fetch your Gate Pass under the **Track Leave Application** tab.")
+
+        with leave_sub_tab2:
+            st.subheader("Search & Track Leave Pass Status")
+            leave_search_mode = st.radio("Search Method", ["🎫 Leave Ticket ID", "🔑 Forgot Ticket ID? (Search by Room & Student Name)"], horizontal=True, key="leave_track_radio")
+            
+            leave_results = None
+            l_searched = False
+            
+            if "Ticket ID" in leave_search_mode:
+                l_col1, l_col2 = st.columns([3, 1])
+                with l_col1:
+                    l_search_id = st.text_input("Enter Leave Ticket ID", placeholder="e.g. 1 or L-1", key="l_search_id")
+                with l_col2:
+                    st.write(""); st.write("")
+                    l_search_btn = st.button("🔍 Search Leave ID", use_container_width=True, key="btn_l_search_id")
+                if l_search_btn:
+                    l_searched = True
+                    if not l_search_id.strip():
+                        st.warning("Please enter a Leave Ticket ID.")
+                    else:
+                        try:
+                            lid = int(l_search_id.strip().replace("#", "").replace("L-", "").replace("l-", ""))
+                            app_rec = database.get_leave_application_by_id(lid)
+                            leave_results = [app_rec] if app_rec else []
+                        except ValueError:
+                            st.error("Please enter a valid numeric Leave ID (e.g. 1).")
+            else:
+                st.info("⚠️ Enter both your **Room Number** and **Student Name** to track your leave application.")
+                lf_c1, lf_c2, lf_c3 = st.columns([1.5, 2, 1])
+                with lf_c1:
+                    l_room_q = st.text_input("Room Number *", placeholder="e.g. B-204", key="l_room_q")
+                with lf_c2:
+                    l_name_q = st.text_input("Student Name *", placeholder="e.g. Aniket Sharma", key="l_name_q")
+                with lf_c3:
+                    st.write(""); st.write("")
+                    l_forgot_btn = st.button("🔍 Find Leave Requests", use_container_width=True, key="btn_l_forgot")
+                if l_forgot_btn:
+                    l_searched = True
+                    if not l_room_q.strip() or not l_name_q.strip():
+                        st.error("❌ Both Room Number and Student Name are required to search.")
+                    else:
+                        leave_results = database.get_leave_applications_by_room_and_name(l_room_q.strip(), l_name_q.strip())
+            
+            if l_searched and leave_results is not None:
+                if leave_results:
+                    st.markdown(f"Found **{len(leave_results)}** leave record(s):")
+                    for l_item in leave_results:
+                        l_status = l_item['status']
+                        l_badge = "badge-pending"
+                        if "Approved" in l_status: l_badge = "badge-resolved"
+                        elif "Rejected" in l_status: l_badge = "badge-rejected"
+                        
+                        with st.expander(f"🌴 Leave Application #L-{l_item['leave_id']} - {l_item['student_name']} ({l_item['block_name']} Room {l_item['room_number']})", expanded=True):
+                            st.markdown(f"""
+                            **Status:** <span class="badge {l_badge}">{l_status}</span>  |  **Granting Teacher:** `{l_item['granting_teacher']}`  
+                            **Dates:** `{l_item['from_date']}` to `{l_item['to_date']}`  |  **Destination:** {l_item['destination']}  
+                            **Reason:** {l_item['leave_reason']}  
+                            """, unsafe_allow_html=True)
+                            
+                            if l_item.get('gate_pass_code'):
+                                st.success(f"🎫 **APPROVED GATE PASS CODE:** `{l_item['gate_pass_code']}`\n\nShow this code to the Hostel Security Gate Officer upon departure.")
+                            
+                            st.markdown(f"**Student Contact:** {l_item['phone_number']} | **Parent Emergency Contact:** {l_item['parent_phone']}")
+                            st.caption(f"Warden Notes: {l_item.get('warden_remarks') or 'Awaiting warden authorization'} | Submitted: {l_item['date_submitted']}")
+                else:
+                    st.warning("No matching leave application records found.")
+
+    # TAB 4: CAMPUS NOTICES
     with tab_notices:
         st.subheader("📢 Official Hostel Announcements & Circulars")
         
@@ -332,12 +480,13 @@ if portal_mode == "🎓 Student Resident Portal":
         
         if notices:
             for n in notices:
+                expiry_str = f"⏳ Active until: {n['expires_at']}" if n.get('expires_at') else "📌 Permanent Notice"
                 with st.container():
                     st.markdown(f"""
                     <div class="card-box">
                         <h4 style="margin:0; color:#0f172a;">📢 {n['title']}</h4>
                         <p style="color:#0284c7; font-size:0.85rem; font-weight:600; margin: 4px 0 10px 0;">
-                            Target: {n['target_block']} | Category: {n['category']} | Date: {n['date_posted']} | Posted by: {n.get('posted_by', 'Warden Office')}
+                            Target: {n['target_block']} | Category: {n['category']} | Date: {n['date_posted']} | <span style="color:#e11d48; font-weight:bold;">{expiry_str}</span> | Posted by: {n.get('posted_by', 'Warden Office')}
                         </p>
                         <p style="color:#334155; font-size:0.95rem; margin:0;">{n['content']}</p>
                     </div>
@@ -369,73 +518,105 @@ else:
                     st.success("Authentication successful!")
                     st.rerun()
                 else:
-                    st.error("Incorrect Passcode. Access denied.")
+                    st.error("Incorrect Passcode! Access Denied.")
     else:
-        if st.sidebar.button("🔒 Lock Warden Desk"):
+        # Admin Logout option in sidebar
+        if st.sidebar.button("🔒 Lock Warden Desk (Logout)", use_container_width=True):
             st.session_state["admin_authenticated"] = False
             st.rerun()
             
-        admin_tab1, admin_tab2 = st.tabs(["🛡️ Grievance Dispatch Console", "📢 Notice Board Manager"])
+        admin_tab1, admin_tab2, admin_tab3 = st.tabs(["📋 Dispatch & Grievance Operations", "🌴 Student Leave & Gate Pass Roster", "📢 Notice Manager"])
         
-        # TAB 1: DISPATCH CONSOLE
+        # TAB 1: GRIEVANCE DISPATCH OPERATIONS
         with admin_tab1:
-            # KPI Metrics Row
-            counts = database.get_grievance_counts()
-            m1, m2, m3, m4, m5, m6 = st.columns(6)
-            
-            m1.metric("Total", counts['total'])
-            m2.metric("Emergency 🚨", counts.get('emergency', 0))
-            m3.metric("Pending 🟧", counts['pending'])
-            m4.metric("In Progress 🟨", counts['in_progress'])
-            m5.metric("Resolved 🟩", counts['resolved'])
-            m6.metric("Rejected 🟥", counts.get('rejected', 0))
-            
-            st.markdown("---")
+            st.subheader("Warden Control & Dispatch Operations Console")
             
             # Filter bar
-            f_col1, f_col2, f_col3 = st.columns(3)
+            f_col1, f_col2, f_col3, f_col4 = st.columns([1.5, 1.5, 3, 1])
             with f_col1:
-                filter_block = st.selectbox("Filter Block", ["All", "BH-1", "BH-2", "BH-3", "GH-1", "GH-2", "IH-1"])
+                filter_block = st.selectbox("Hostel Block", ["All Blocks", "BH-1", "BH-2", "BH-3", "GH-1", "GH-2", "IH-1"])
             with f_col2:
-                filter_status = st.selectbox("Filter Status", ["All", "Pending", "In Progress", "Resolved", "Rejected"])
+                filter_status = st.selectbox("Status Filter", ["All Statuses", "Pending", "In Progress", "Resolved", "Rejected"])
             with f_col3:
-                search_term = st.text_input("Search (ID, Name, Room, Staff)", placeholder="Search grievances...")
-                
-            grievances = database.get_all_grievances(status_filter=filter_status, block_filter=filter_block, search_query=search_term)
+                search_admin = st.text_input("Search (ID, Name, Room, Description)", placeholder="Search grievances...")
+            with f_col4:
+                st.write("")
+                st.write("")
+                if st.button("🔄 Refresh Data", use_container_width=True):
+                    st.rerun()
+                    
+            grievances = database.get_all_grievances(
+                status_filter=filter_status, 
+                block_filter=filter_block, 
+                search_query=search_admin
+            )
             
             if grievances:
                 df = pd.DataFrame(grievances)
-                st.subheader(f"Grievances List ({len(df)})")
+                st.markdown(f"Displaying **{len(df)}** grievance record(s):")
                 
-                # Format table
-                display_cols = ["grievance_id", "date_submitted", "block_name", "room_number", "student_name", "category", "priority", "status", "assigned_staff", "admin_remarks"]
-                st.dataframe(df[display_cols], use_container_width=True)
+                # Render interactive dataframe table
+                display_cols = ["grievance_id", "block_name", "room_number", "student_name", "category", "priority", "status", "last_updated"]
+                st.dataframe(
+                    df[display_cols],
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "grievance_id": "ID",
+                        "block_name": "Block",
+                        "room_number": "Room",
+                        "student_name": "Student Name",
+                        "category": "Category",
+                        "priority": "Priority",
+                        "status": "Status",
+                        "last_updated": "Last Updated"
+                    }
+                )
                 
-                st.markdown("### ⚡ Dispatch & Action Controls")
-                selected_id = st.selectbox("Select Grievance ID to Action", df['grievance_id'].tolist())
+                st.markdown("---")
+                st.subheader("🛠️ Warden Action & Dispatch Details")
                 
-                if selected_id:
+                g_options = [f"Ticket #{g['grievance_id']} - {g['student_name']} ({g['block_name']} Room {g['room_number']})" for g in grievances]
+                selected_g_label = st.selectbox("Select Grievance Ticket to Manage", g_options)
+                
+                if selected_g_label:
+                    selected_id = int(selected_g_label.split("Ticket #")[1].split(" - ")[0])
                     selected_item = database.get_grievance_by_id(selected_id)
+                    
                     if selected_item:
-                        st.info(f"Selected Ticket **#{selected_id}** by {selected_item['student_name']} (Room {selected_item['room_number']}, {selected_item['block_name']})")
-                        st.caption(f"**Issue Description:** {selected_item['description']}")
+                        info_c1, info_c2 = st.columns(2)
+                        with info_c1:
+                            st.markdown(f"**Student:** {selected_item['student_name']} ({selected_item['block_name']} Room {selected_item['room_number']})")
+                            st.markdown(f"**Category:** {selected_item['category']}")
+                            st.markdown(f"**Submitted:** {selected_item['date_submitted']}")
+                        with info_c2:
+                            st.markdown(f"**Current Status:** `{selected_item['status']}`")
+                            st.markdown(f"**Priority:** `{selected_item['priority']}`")
+                            st.markdown(f"**Assigned Staff:** `{selected_item.get('assigned_staff') or 'None'}`")
+                            
+                        st.markdown(f"**Issue Description:**\n>{selected_item['description']}")
+                        if selected_item.get('suggestion'):
+                            st.markdown(f"**Student Suggestion:**\n_{selected_item['suggestion']}_")
+                            
+                        st.markdown("---")
                         
-                        with st.form("action_form"):
-                            act_col1, act_col2 = st.columns(2)
-                            with act_col1:
+                        with st.form(f"update_form_{selected_id}"):
+                            u_col1, u_col2 = st.columns(2)
+                            with u_col1:
                                 new_status = st.selectbox("Update Status", ["Pending", "In Progress", "Resolved", "Rejected"], index=["Pending", "In Progress", "Resolved", "Rejected"].index(selected_item['status']) if selected_item['status'] in ["Pending", "In Progress", "Resolved", "Rejected"] else 0)
-                                new_staff = st.text_input("Assign Staff / Technician", value=selected_item.get('assigned_staff', ''))
-                            with act_col2:
-                                new_remarks = st.text_area("Warden Remarks / Resolution Notes", value=selected_item.get('admin_remarks', ''))
+                            with u_col2:
+                                new_staff = st.text_input("Assign Maintenance Staff", value=selected_item.get('assigned_staff', ''))
                                 
-                            upd_col1, upd_col2 = st.columns([1, 1])
-                            with upd_col1:
-                                update_btn = st.form_submit_button("💾 Update Status & Dispatch Staff", type="primary", use_container_width=True)
-                            with upd_col2:
-                                delete_btn = st.form_submit_button("🗑️ Delete Grievance Record", use_container_width=True)
+                            new_remarks = st.text_area("Warden Remarks / Resolution Notes", value=selected_item.get('admin_remarks', ''))
+                            
+                            b_col1, b_col2 = st.columns([3, 1])
+                            with b_col1:
+                                save_btn = st.form_submit_button("💾 Save Dispatch Updates", type="primary", use_container_width=True)
+                            with b_col2:
+                                delete_btn = st.form_submit_button("🗑️ Delete Ticket", use_container_width=True)
                                 
-                            if update_btn:
-                                database.update_grievance(selected_id, new_status, new_remarks, new_staff)
+                            if save_btn:
+                                database.update_grievance(selected_id, new_status, new_remarks, assigned_staff=new_staff.strip())
                                 st.success(f"Grievance #{selected_id} updated successfully!")
                                 st.rerun()
                                 
@@ -455,17 +636,131 @@ else:
             else:
                 st.info("No grievances match the current filter criteria.")
 
-        # TAB 2: NOTICE MANAGER
+        # TAB 2: STUDENT LEAVE & GATE PASS ROSTER
         with admin_tab2:
+            st.subheader("🌴 Student Outstation Leave & Gate Pass Control")
+            
+            l_f1, l_f2, l_f3, l_f4 = st.columns([1.5, 1.5, 3, 1])
+            with l_f1:
+                l_filter_block = st.selectbox("Hostel Block Filter", ["All Blocks", "BH-1", "BH-2", "BH-3", "GH-1", "GH-2", "IH-1"], key="w_l_block")
+            with l_f2:
+                l_filter_status = st.selectbox("Status Filter", ["All Statuses", "Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"], key="w_l_status")
+            with l_f3:
+                l_search_w = st.text_input("Search (ID, Name, Room, Teacher, Destination)", placeholder="Search leave applications...", key="w_l_search")
+            with l_f4:
+                st.write(""); st.write("")
+                if st.button("🔄 Refresh Roster", use_container_width=True, key="w_l_refresh"):
+                    st.rerun()
+
+            all_leaves = database.get_all_leave_applications(status_filter=l_filter_status, block_filter=l_filter_block, search_query=l_search_w)
+            
+            if all_leaves:
+                l_df = pd.DataFrame(all_leaves)
+                st.markdown(f"Displaying **{len(l_df)}** leave application(s):")
+                
+                l_display_cols = ["leave_id", "block_name", "room_number", "student_name", "granting_teacher", "from_date", "to_date", "destination", "status", "gate_pass_code"]
+                st.dataframe(
+                    l_df[l_display_cols],
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "leave_id": "Leave ID",
+                        "block_name": "Block",
+                        "room_number": "Room",
+                        "student_name": "Student Name",
+                        "granting_teacher": "Granting Teacher / Faculty",
+                        "from_date": "From",
+                        "to_date": "To",
+                        "destination": "Destination",
+                        "status": "Approval Status",
+                        "gate_pass_code": "Gate Pass Code"
+                    }
+                )
+                
+                st.markdown("---")
+                st.subheader("🛠️ Warden Gate Pass Action Panel")
+                
+                l_options = [f"Leave #L-{rec['leave_id']} - {rec['student_name']} ({rec['block_name']} Room {rec['room_number']})" for rec in all_leaves]
+                selected_leave_label = st.selectbox("Select Leave Application to Action", l_options, key="sel_leave_label")
+                
+                if selected_leave_label:
+                    sel_lid = int(selected_leave_label.split("Leave #L-")[1].split(" - ")[0])
+                    sel_leave = database.get_leave_application_by_id(sel_lid)
+                    
+                    if sel_leave:
+                        lc_1, lc_2 = st.columns(2)
+                        with lc_1:
+                            st.markdown(f"**Student:** {sel_leave['student_name']} ({sel_leave['block_name']} Room {sel_leave['room_number']})")
+                            st.markdown(f"**Student Phone:** `{sel_leave['phone_number']}`  |  **Parent Phone:** `{sel_leave['parent_phone']}`")
+                            st.markdown(f"**Granting Teacher Sign-off:** `{sel_leave['granting_teacher']}`")
+                        with lc_2:
+                            st.markdown(f"**Destination:** {sel_leave['destination']}")
+                            st.markdown(f"**Leave Dates:** `{sel_leave['from_date']}` to `{sel_leave['to_date']}`")
+                            st.markdown(f"**Reason:** {sel_leave['leave_reason']}")
+                            
+                        st.markdown("---")
+                        with st.form(f"leave_action_form_{sel_lid}"):
+                            la_col1, la_col2 = st.columns(2)
+                            with la_col1:
+                                new_l_status = st.selectbox("Action / Approval", ["Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"], index=["Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"].index(sel_leave['status']) if sel_leave['status'] in ["Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"] else 0)
+                            with la_col2:
+                                default_gp = sel_leave.get('gate_pass_code') or f"GP-2026-X{sel_lid:03d}"
+                                new_gp_code = st.text_input("Gate Pass Code", value=default_gp)
+                                
+                            new_w_remarks = st.text_area("Warden Remarks / Authorization Notes", value=sel_leave.get('warden_remarks', ''))
+                            
+                            lb_col1, lb_col2 = st.columns([3, 1])
+                            with lb_col1:
+                                save_l_btn = st.form_submit_button("💾 Save Leave Authorization & Issue Pass", type="primary", use_container_width=True)
+                            with lb_col2:
+                                delete_l_btn = st.form_submit_button("🗑️ Delete Leave Record", use_container_width=True)
+                                
+                            if save_l_btn:
+                                database.update_leave_status(sel_lid, new_l_status, warden_remarks=new_w_remarks.strip(), gate_pass_code=new_gp_code.strip() if "Approved" in new_l_status else "")
+                                st.success(f"Leave Application #L-{sel_lid} updated successfully!")
+                                st.rerun()
+                                
+                            if delete_l_btn:
+                                database.delete_leave_application(sel_lid)
+                                st.warning(f"Leave Record #L-{sel_lid} deleted!")
+                                st.rerun()
+
+                # Export CSV
+                l_csv_data = l_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Export Outstation Roster (CSV)",
+                    data=l_csv_data,
+                    file_name=f"hostel_outstation_roster_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.info("No leave applications match the current filter criteria.")
+
+        # TAB 3: NOTICE MANAGER
+        with admin_tab3:
             st.subheader("📢 Create New Hostel Announcement")
             
             with st.form("create_notice_form", clear_on_submit=True):
                 n_title = st.text_input("Announcement Title *", placeholder="e.g. Water Tank Cleaning Notice")
-                n_col1, n_col2 = st.columns(2)
+                n_col1, n_col2, n_col3 = st.columns([1, 1, 1])
                 with n_col1:
                     n_cat = st.selectbox("Category", ["📢 General Notice", "⚡ Power Maintenance", "🚰 Water Supply", "🧹 Mess & Sanitation", "🚨 Emergency Alert"])
                 with n_col2:
                     n_block = st.selectbox("Target Hostel Block", ["All Blocks", "BH-1", "BH-2", "BH-3", "GH-1", "GH-2", "IH-1"])
+                with n_col3:
+                    n_duration = st.selectbox(
+                        "Active Duration / Expiry Timer *", 
+                        [
+                            "📌 No Expiration (Permanent)", 
+                            "⏱️ 1 Hour", 
+                            "⏱️ 12 Hours", 
+                            "⏱️ 24 Hours (1 Day)", 
+                            "⏱️ 2 Days (48 Hours)", 
+                            "⏱️ 3 Days (72 Hours)", 
+                            "⏱️ 7 Days (1 Week)"
+                        ]
+                    )
+
                 n_content = st.text_area("Notice Content / Message Body *")
                 n_posted_by = st.text_input("Posted By", value="Chief Hostel Warden Office")
                 
@@ -474,7 +769,17 @@ else:
                     if not n_title.strip() or not n_content.strip():
                         st.error("Title and Content are required.")
                     else:
-                        database.create_notice(n_title.strip(), n_content.strip(), n_cat, n_block, n_posted_by)
+                        duration_map = {
+                            "📌 No Expiration (Permanent)": 0,
+                            "⏱️ 1 Hour": 1,
+                            "⏱️ 12 Hours": 12,
+                            "⏱️ 24 Hours (1 Day)": 24,
+                            "⏱️ 2 Days (48 Hours)": 48,
+                            "⏱️ 3 Days (72 Hours)": 72,
+                            "⏱️ 7 Days (1 Week)": 168
+                        }
+                        exp_h = duration_map.get(n_duration, 0)
+                        database.create_notice(n_title.strip(), n_content.strip(), n_cat, n_block, n_posted_by, expiry_hours=exp_h)
                         st.success("Notice published successfully!")
                         st.rerun()
                         
@@ -483,9 +788,13 @@ else:
             all_notices = database.get_all_notices()
             if all_notices:
                 for noti in all_notices:
-                    with st.expander(f"📢 [{noti['target_block']}] {noti['title']} ({noti['date_posted']})"):
+                    exp_badge = f" (⏳ Expires: {noti['expires_at']})" if noti.get('expires_at') else " (📌 Permanent)"
+                    with st.expander(f"📢 [{noti['target_block']}] {noti['title']} ({noti['date_posted']}{exp_badge})"):
                         st.write(noti['content'])
-                        if st.button("Delete Notice", key=f"del_notice_{noti['notice_id']}"):
+                        st.caption(f"Posted by: {noti.get('posted_by', 'Warden Office')}{exp_badge}")
+                        if st.button("🗑️ Delete Notice", key=f"del_notice_{noti['notice_id']}"):
                             database.delete_notice(noti['notice_id'])
                             st.warning("Notice deleted!")
                             st.rerun()
+            else:
+                st.info("No active published notices currently on the board.")
