@@ -4,6 +4,10 @@ import pandas as pd
 import datetime
 import os
 import database
+import importlib
+
+# Ensure fresh module reload on Streamlit execution
+importlib.reload(database)
 
 # Page Configuration
 st.set_page_config(
