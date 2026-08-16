@@ -131,13 +131,13 @@ def get_all_grievances(status_filter=None, block_filter=None, search_query=None)
         query = "SELECT * FROM Grievances WHERE 1=1"
         params = []
         
-        if status_filter and status_filter != "All":
+        if status_filter and status_filter not in ("All", "All Statuses"):
             query += " AND status = ?"
             params.append(status_filter)
             
-        if block_filter and block_filter != "All":
-            query += " AND block_name = ?"
-            params.append(block_filter)
+        if block_filter and block_filter not in ("All", "All Blocks"):
+            query += " AND (block_name = ? OR block_name LIKE ? ESCAPE '\\')"
+            params.extend([block_filter, f"{escape_like(block_filter)}%"])
             
         if search_query:
             escaped_query = escape_like(search_query)
@@ -350,13 +350,13 @@ def get_all_leave_applications(status_filter=None, block_filter=None, search_que
         query = "SELECT * FROM LeaveApplications WHERE 1=1"
         params = []
         
-        if status_filter and status_filter != "All Statuses" and status_filter != "All":
+        if status_filter and status_filter not in ("All", "All Statuses"):
             query += " AND status = ?"
             params.append(status_filter)
             
-        if block_filter and block_filter != "All Blocks" and block_filter != "All":
-            query += " AND block_name = ?"
-            params.append(block_filter)
+        if block_filter and block_filter not in ("All", "All Blocks"):
+            query += " AND (block_name = ? OR block_name LIKE ? ESCAPE '\\')"
+            params.extend([block_filter, f"{escape_like(block_filter)}%"])
             
         if search_query and search_query.strip():
             sq = f"%{escape_like(search_query.strip())}%"
