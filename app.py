@@ -355,6 +355,49 @@ else:
 
 st.markdown(f'<div class="notice-banner">{ticker_text}</div>', unsafe_allow_html=True)
 
+# --- LIVE KPI DASHBOARD (main content) ---
+counts = database.get_grievance_counts()
+
+kpi_html = f"""
+<div class="kpi-grid">
+    <div class="kpi-card kpi-blue">
+        <div class="kpi-icon">🗂️</div>
+        <div>
+            <div class="kpi-value">{counts['total']}</div>
+            <div class="kpi-label">Total Tickets</div>
+        </div>
+    </div>
+    <div class="kpi-card kpi-amber">
+        <div class="kpi-icon">⏳</div>
+        <div>
+            <div class="kpi-value">{counts['pending']}</div>
+            <div class="kpi-label">Pending</div>
+        </div>
+    </div>
+    <div class="kpi-card kpi-violet">
+        <div class="kpi-icon">🔧</div>
+        <div>
+            <div class="kpi-value">{counts['in_progress']}</div>
+            <div class="kpi-label">In Progress</div>
+        </div>
+    </div>
+    <div class="kpi-card kpi-green">
+        <div class="kpi-icon">✅</div>
+        <div>
+            <div class="kpi-value">{counts['resolved']}</div>
+            <div class="kpi-label">Resolved</div>
+        </div>
+    </div>
+</div>
+"""
+st.markdown(kpi_html, unsafe_allow_html=True)
+
+if counts.get('emergency', 0) > 0:
+    st.markdown(
+        f'<div class="emergency-strip">🚨 {counts["emergency"]} Active Emergency Ticket(s) Require Immediate Attention</div>',
+        unsafe_allow_html=True
+    )
+
 # --- SIDEBAR NAVIGATION ---
 try:
     st.sidebar.image("https://img.icons8.com/isometric/100/building.png", width=70)
@@ -377,20 +420,6 @@ st.sidebar.info("""
 **Electrical Duty:** Ext 104  
 **Plumbing Duty:** Ext 105
 """)
-
-# Quick Stats Widget in Sidebar
-counts = database.get_grievance_counts()
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 📊 Live System Overview")
-sc1, sc2 = st.sidebar.columns(2)
-sc1.metric("Total", counts['total'])
-sc2.metric("Pending", counts['pending'])
-sc3, sc4 = st.sidebar.columns(2)
-sc3.metric("In Progress", counts['in_progress'])
-sc4.metric("Resolved", counts['resolved'])
-
-if counts.get('emergency', 0) > 0:
-    st.sidebar.error(f"🚨 **Active Emergencies:** {counts['emergency']}")
 
 
 # ==========================================
