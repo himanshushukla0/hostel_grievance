@@ -70,10 +70,37 @@ def init_db():
                 category TEXT NOT NULL,
                 target_block TEXT DEFAULT 'All Blocks',
                 date_posted TEXT NOT NULL,
-                posted_by TEXT DEFAULT 'Hostel Warden Office'
+                posted_by TEXT DEFAULT 'Hostel Warden Office',
+                expires_at TEXT DEFAULT ''
             )
         ''')
         
+        cursor.execute("PRAGMA table_info(Notices)")
+        notice_cols = [row['name'] for row in cursor.fetchall()]
+        if 'expires_at' not in notice_cols:
+            cursor.execute("ALTER TABLE Notices ADD COLUMN expires_at TEXT DEFAULT ''")
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS LeaveApplications (
+                leave_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_name TEXT NOT NULL,
+                block_name TEXT DEFAULT 'BH-1',
+                room_number TEXT NOT NULL,
+                phone_number TEXT NOT NULL,
+                parent_phone TEXT NOT NULL,
+                leave_reason TEXT NOT NULL,
+                destination TEXT NOT NULL,
+                from_date TEXT NOT NULL,
+                to_date TEXT NOT NULL,
+                granting_teacher TEXT NOT NULL,
+                status TEXT DEFAULT 'Pending Warden Approval',
+                warden_remarks TEXT DEFAULT '',
+                gate_pass_code TEXT DEFAULT '',
+                date_submitted TEXT NOT NULL,
+                last_updated TEXT DEFAULT ''
+            )
+        ''')
+
         conn.commit()
 
 
@@ -199,21 +226,56 @@ def get_grievances_by_room_or_name(search_term):
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
 
-def create_notice(title, content, category, target_block="All Blocks", posted_by="Hostel Warden Office"):
-    """Insert a new notice/announcement into database."""
+def get_grievances_by_room_and_name(room_number, student_name, block_name=None):
+    """Fetch grievances matching BOTH room number AND student name (secure forgot-ID lookup)."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        query = """
+            SELECT * FROM Grievances 
+            WHERE LOWER(TRIM(room_number)) = LOWER(TRIM(?)) 
+              AND LOWER(TRIM(student_name)) LIKE LOWER(TRIM(?))
+        """
+        params = [room_number.strip(), f"%{escape_like(student_name.strip())}%"]
+        if block_name and block_name != "All Blocks":
+            query += " AND block_name = ?"
+            params.append(block_name)
+        query += " ORDER BY date_submitted DESC"
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+def cleanup_expired_notices():
+    """Auto-delete notices whose active timer / expiry timestamp has passed."""
     with get_db() as conn:
         cursor = conn.cursor()
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("DELETE FROM Notices WHERE expires_at != '' AND expires_at <= ?", (now,))
+        conn.commit()
+
+def create_notice(title, content, category, target_block="All Blocks", posted_by="Hostel Warden Office", expiry_hours=0):
+    """Insert a new notice/announcement into database with optional active timer duration (in hours)."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        now_dt = datetime.datetime.now()
+        now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+        
+        expires_at = ""
+        if expiry_hours and float(expiry_hours) != 0:
+            exp_dt = now_dt + datetime.timedelta(hours=float(expiry_hours))
+            expires_at = exp_dt.strftime("%Y-%m-%d %H:%M:%S")
+
         cursor.execute('''
-            INSERT INTO Notices (title, content, category, target_block, date_posted, posted_by)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (title, content, category, target_block, now, posted_by))
+            INSERT INTO Notices (title, content, category, target_block, date_posted, posted_by, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (title, content, category, target_block, now_str, posted_by, expires_at))
         notice_id = cursor.lastrowid
         conn.commit()
         return notice_id
 
 def get_all_notices(block_filter=None, category_filter=None):
-    """Fetch all published notices with optional block/category filtering."""
+    """Fetch all published active notices, automatically purging expired ones."""
+    cleanup_expired_notices()
     with get_db() as conn:
         cursor = conn.cursor()
         query = "SELECT * FROM Notices WHERE 1=1"
@@ -237,6 +299,92 @@ def delete_notice(notice_id):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM Notices WHERE notice_id = ?", (notice_id,))
+        conn.commit()
+
+# ==========================================
+# 🌴 STUDENT LEAVE & GATE PASS OPERATIONS
+# ==========================================
+
+def create_leave_application(name, block, room, phone, parent_phone, reason, destination, from_date, to_date, teacher_name):
+    """Insert a new leave application / gate pass request into database."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute('''
+            INSERT INTO LeaveApplications (
+                student_name, block_name, room_number, phone_number, parent_phone, 
+                leave_reason, destination, from_date, to_date, granting_teacher, 
+                status, warden_remarks, gate_pass_code, date_submitted, last_updated
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending Warden Approval', '', '', ?, ?)
+        ''', (name, block, room, phone, parent_phone, reason, destination, from_date, to_date, teacher_name, now, now))
+        leave_id = cursor.lastrowid
+        conn.commit()
+        return leave_id
+
+def get_leave_application_by_id(leave_id):
+    """Fetch leave application details by Leave ID."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM LeaveApplications WHERE leave_id = ?", (leave_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+def get_leave_applications_by_room_and_name(room_number, student_name):
+    """Fetch leave applications matching room number AND student name."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        query = """
+            SELECT * FROM LeaveApplications 
+            WHERE LOWER(TRIM(room_number)) = LOWER(TRIM(?)) 
+              AND LOWER(TRIM(student_name)) LIKE LOWER(TRIM(?))
+            ORDER BY date_submitted DESC
+        """
+        cursor.execute(query, (room_number.strip(), f"%{escape_like(student_name.strip())}%"))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+def get_all_leave_applications(status_filter=None, block_filter=None, search_query=None):
+    """Fetch all leave applications with optional status/block filtering and text search."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        query = "SELECT * FROM LeaveApplications WHERE 1=1"
+        params = []
+        
+        if status_filter and status_filter != "All Statuses" and status_filter != "All":
+            query += " AND status = ?"
+            params.append(status_filter)
+            
+        if block_filter and block_filter != "All Blocks" and block_filter != "All":
+            query += " AND block_name = ?"
+            params.append(block_filter)
+            
+        if search_query and search_query.strip():
+            sq = f"%{escape_like(search_query.strip())}%"
+            query += " AND (student_name LIKE ? ESCAPE '\\' OR room_number LIKE ? ESCAPE '\\' OR granting_teacher LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\' OR CAST(leave_id AS TEXT) LIKE ? ESCAPE '\\')"
+            params.extend([sq, sq, sq, sq, sq])
+            
+        query += " ORDER BY date_submitted DESC"
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+def update_leave_status(leave_id, status, warden_remarks="", gate_pass_code=""):
+    """Update leave status, warden remarks, and gate pass code."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute('''
+            UPDATE LeaveApplications 
+            SET status = ?, warden_remarks = ?, gate_pass_code = ?, last_updated = ?
+            WHERE leave_id = ?
+        ''', (status, warden_remarks, gate_pass_code, now, leave_id))
+        conn.commit()
+
+def delete_leave_application(leave_id):
+    """Delete a leave application record."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM LeaveApplications WHERE leave_id = ?", (leave_id,))
         conn.commit()
 
 # Initialize the database file when this module is loaded
