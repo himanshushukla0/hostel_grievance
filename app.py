@@ -94,6 +94,22 @@ st.markdown("""
         border: 1px solid #cbd5e1 !important;
     }
 
+    /* Hide 'Press Enter to submit form' instruction overlay in Streamlit forms */
+    div[data-testid="InputInstructions"], 
+    div[data-testid="stInputInstruction"],
+    small[data-testid="stInputInstruction"],
+    [data-testid="stInputInstruction"],
+    .stTextInput small,
+    .stTextArea small,
+    .stSelectbox small {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
     /* Metric Cards */
     div[data-testid="stMetric"] {
         background-color: #ffffff !important;
@@ -216,7 +232,7 @@ if portal_mode == "🎓 Student Resident Portal":
         st.subheader("Submit Maintenance / Repair Request")
         st.caption("Please fill in accurate details so our maintenance team can respond promptly.")
         
-        with st.form("grievance_form", clear_on_submit=False):
+        with st.form("grievance_form", clear_on_submit=False, enter_to_submit=False):
             col1, col2 = st.columns(2)
             
             with col1:
@@ -364,7 +380,7 @@ if portal_mode == "🎓 Student Resident Portal":
         leave_sub_tab1, leave_sub_tab2 = st.tabs(["📝 Apply for Leave", "🔍 Track Leave Application & Gate Pass"])
         
         with leave_sub_tab1:
-            with st.form("leave_application_form", clear_on_submit=False):
+            with st.form("leave_application_form", clear_on_submit=False, enter_to_submit=False):
                 l_c1, l_c2 = st.columns(2)
                 with l_c1:
                     l_student_name = st.text_input("Student Full Name *", placeholder="e.g. Aniket Sharma", key="leave_std_name")
@@ -510,7 +526,7 @@ else:
         st.session_state["admin_authenticated"] = False
         
     if not st.session_state["admin_authenticated"]:
-        with st.form("admin_login_form"):
+        with st.form("admin_login_form", enter_to_submit=False):
             st.subheader("🔒 Warden Authentication Required")
             input_passcode = st.text_input("Enter Warden Passcode", type="password")
             login_btn = st.form_submit_button("Unlock Warden Desk", type="primary")
@@ -604,7 +620,7 @@ else:
                             
                         st.markdown("---")
                         
-                        with st.form(f"update_form_{selected_id}"):
+                        with st.form(f"update_form_{selected_id}", enter_to_submit=False):
                             u_col1, u_col2 = st.columns(2)
                             with u_col1:
                                 new_status = st.selectbox("Update Status", ["Pending", "In Progress", "Resolved", "Rejected"], index=["Pending", "In Progress", "Resolved", "Rejected"].index(selected_item['status']) if selected_item['status'] in ["Pending", "In Progress", "Resolved", "Rejected"] else 0)
@@ -703,7 +719,7 @@ else:
                             st.markdown(f"**Reason:** {sel_leave['leave_reason']}")
                             
                         st.markdown("---")
-                        with st.form(f"leave_action_form_{sel_lid}"):
+                        with st.form(f"leave_action_form_{sel_lid}", enter_to_submit=False):
                             la_col1, la_col2 = st.columns(2)
                             with la_col1:
                                 new_l_status = st.selectbox("Action / Approval", ["Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"], index=["Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"].index(sel_leave['status']) if sel_leave['status'] in ["Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"] else 0)
@@ -744,7 +760,7 @@ else:
         with admin_tab3:
             st.subheader("📢 Create New Hostel Announcement")
             
-            with st.form("create_notice_form", clear_on_submit=True):
+            with st.form("create_notice_form", clear_on_submit=True, enter_to_submit=False):
                 n_title = st.text_input("Announcement Title *", placeholder="e.g. Water Tank Cleaning Notice")
                 n_col1, n_col2, n_col3 = st.columns([1, 1, 1])
                 with n_col1:
