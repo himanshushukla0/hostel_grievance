@@ -136,13 +136,6 @@ st.markdown("""
         font-size: 0.8rem;
         font-weight: 700;
     }
-    }
-    .main-header h1 {
-        color: #ffffff !important;
-    }
-    .main-header p {
-        color: #94a3b8 !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -205,10 +198,12 @@ st.sidebar.info("""
 counts = database.get_grievance_counts()
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📊 Live System Overview")
-st.sidebar.caption(f"**Total Grievances:** {counts['total']}")
-st.sidebar.caption(f"**Pending Requests:** {counts['pending']}")
-st.sidebar.caption(f"**In Progress:** {counts['in_progress']}")
-st.sidebar.caption(f"**Resolved:** {counts['resolved']}")
+sc1, sc2 = st.sidebar.columns(2)
+sc1.metric("Total", counts['total'])
+sc2.metric("Pending", counts['pending'])
+sc3, sc4 = st.sidebar.columns(2)
+sc3.metric("In Progress", counts['in_progress'])
+sc4.metric("Resolved", counts['resolved'])
 
 if counts.get('emergency', 0) > 0:
     st.sidebar.error(f"🚨 **Active Emergencies:** {counts['emergency']}")
@@ -272,14 +267,27 @@ if portal_mode == "🎓 Student Resident Portal":
             
             description = st.text_area("Issue Description *", placeholder="Describe the problem in detail (location, behavior, urgency)...")
             suggestion = st.text_area("Suggestion / Recommended Solution (Optional)", placeholder="Any suggestions for maintenance team?")
+            photo_file = st.file_uploader("Attach a Photo (Optional)", type=["png", "jpg", "jpeg"])
             
             submitted = st.form_submit_button("🚀 Submit Complaint", type="primary", use_container_width=True)
             
             if submitted:
                 if not student_name.strip() or not room_number.strip() or not description.strip():
                     st.error("⚠️ Form incomplete! Please fill in all required fields (* Name, Room Number, and Description) before submitting.")
+                elif "Emergency" in priority and len(description.strip()) < 20:
+                    st.error("⚠️ Emergency priority requires a fuller description (at least 20 characters) so the on-duty staff know what they're responding to.")
                 else:
                     clean_block = block_full.split(" (")[0] if " (" in block_full else block_full
+
+                    photo_path = ""
+                    if photo_file is not None:
+                        os.makedirs("uploads", exist_ok=True)
+                        ext = photo_file.name.split(".")[-1]
+                        safe_room = "".join(c for c in room_number.strip() if c.isalnum() or c in ("-", "_"))
+                        photo_path = f"uploads/{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_room}.{ext}"
+                        with open(photo_path, "wb") as f:
+                            f.write(photo_file.getbuffer())
+
                     gid = database.create_grievance(
                         name=student_name.strip(),
                         room=room_number.strip(),
@@ -287,7 +295,8 @@ if portal_mode == "🎓 Student Resident Portal":
                         description=description.strip(),
                         block_name=clean_block,
                         priority=priority,
-                        suggestion=suggestion.strip()
+                        suggestion=suggestion.strip(),
+                        photo_path=photo_path
                     )
                     st.balloons()
                     st.success(f"🎉 **Request Submitted Successfully!**\n\nYour Grievance ID is **#{gid}**. You can track its status under the **Track Status** tab.")
@@ -361,6 +370,12 @@ if portal_mode == "🎓 Student Resident Portal":
                         """, unsafe_allow_html=True)
                         
                         st.markdown(f"**Issue Description:**\n>{item['description']}")
+                        
+                        if item.get('photo_path'):
+                            try:
+                                st.image(item['photo_path'], caption="Attached Photo", width=300)
+                            except Exception:
+                                pass
                         
                         if item.get('suggestion'):
                             st.markdown(f"**Student Suggestion:**\n_{item['suggestion']}_")
@@ -532,8 +547,7 @@ else:
             login_btn = st.form_submit_button("Unlock Warden Desk", type="primary")
             
             if login_btn:
-                valid_passcodes = {"1234", "admin123", ADMIN_PASSCODE.strip(), "MySecretWardenPass123"}
-                if input_passcode.strip() in valid_passcodes:
+                if input_passcode.strip() == ADMIN_PASSCODE.strip():
                     st.session_state["admin_authenticated"] = True
                     st.success("Authentication successful!")
                     st.rerun()
@@ -615,6 +629,11 @@ else:
                             st.markdown(f"**Assigned Staff:** `{selected_item.get('assigned_staff') or 'None'}`")
                             
                         st.markdown(f"**Issue Description:**\n>{selected_item['description']}")
+                        if selected_item.get('photo_path'):
+                            try:
+                                st.image(selected_item['photo_path'], caption="Attached Photo", width=300)
+                            except Exception:
+                                pass
                         if selected_item.get('suggestion'):
                             st.markdown(f"**Student Suggestion:**\n_{selected_item['suggestion']}_")
                             
