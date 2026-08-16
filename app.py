@@ -20,82 +20,163 @@ st.set_page_config(
 # Custom CSS Styling for Premium UI
 st.markdown("""
 <style>
-    /* Force Light Background for main app and crisp contrast for all text */
-    .stApp {
-        background-color: #f8fafc !important;
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* Force all text in main content to dark navy/black */
+    :root {
+        --bg: #f1f5f9;
+        --card: #ffffff;
+        --border: #dbe2ea;
+        --text: #0f172a;
+        --text-muted: #64748b;
+        --accent: #2563eb;
+        --accent-dark: #1d4ed8;
+        --danger: #dc2626;
+        --warning: #d97706;
+        --success: #15803d;
+        --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    }
+
+    .stApp {
+        background:
+            radial-gradient(circle at 1px 1px, rgba(15,23,42,0.035) 1px, transparent 0) 0 0 / 22px 22px,
+            var(--bg) !important;
+    }
+
     .stApp .main h1, .stApp .main h2, .stApp .main h3, .stApp .main h4, .stApp .main h5, .stApp .main h6,
     .stApp .main p, .stApp .main label, .stApp .main span, .stApp .main div {
-        color: #0f172a !important;
+        color: var(--text) !important;
     }
-    
-    /* Header Container */
+
+    .stApp .main h1, .stApp .main h2, .stApp .main h3 {
+        letter-spacing: -0.02em;
+        font-weight: 800 !important;
+    }
+
+    /* ---------- Header ---------- */
     .main-header {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
-        padding: 24px 30px;
-        border-radius: 12px;
-        margin-bottom: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0f172a 100%) !important;
+        padding: 28px 32px;
+        border-radius: 14px;
+        margin-bottom: 14px;
+        border: 1px solid #1e293b;
+        border-top: 3px solid var(--accent);
+        box-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.5);
+        position: relative;
+        overflow: hidden;
+    }
+    .main-header::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: linear-gradient(90deg, rgba(37,99,235,0.08) 1px, transparent 1px);
+        background-size: 40px 100%;
+        pointer-events: none;
     }
     .main-header h1 {
         color: #ffffff !important;
-        font-size: 1.8rem;
-        font-weight: 700;
+        font-size: 1.65rem;
+        font-weight: 800;
         margin: 0;
+        letter-spacing: -0.01em;
     }
     .main-header p {
         color: #94a3b8 !important;
-        font-size: 0.95rem;
-        margin-top: 4px;
+        font-size: 0.85rem;
+        font-family: var(--mono);
+        margin-top: 6px;
         margin-bottom: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
     }
 
-    /* Warden Ticker Banner */
+    /* ---------- Notice ticker ---------- */
     .notice-banner {
-        background-color: #fef3c7 !important;
-        border-left: 5px solid #d97706 !important;
+        background: #fffbeb !important;
+        border: 1px solid #fde68a !important;
+        border-left: 4px solid var(--warning) !important;
         color: #92400e !important;
-        padding: 12px 18px;
-        border-radius: 6px;
+        padding: 11px 18px;
+        border-radius: 8px;
         font-weight: 600;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         margin-bottom: 24px;
+        font-family: var(--mono);
     }
 
-    /* Sidebar Fixes: Crisp white text on dark slate background */
+    /* ---------- Sidebar ---------- */
     [data-testid="stSidebar"] {
-        background-color: #1e293b !important;
+        background: linear-gradient(180deg, #0f172a 0%, #111827 100%) !important;
+        border-right: 1px solid #1e293b;
     }
-    [data-testid="stSidebar"] *, 
-    [data-testid="stSidebar"] label, 
-    [data-testid="stSidebar"] label p, 
-    [data-testid="stSidebar"] span, 
+    [data-testid="stSidebar"] *,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] label p,
+    [data-testid="stSidebar"] span,
     [data-testid="stSidebar"] p,
-    [data-testid="stSidebar"] h1, 
-    [data-testid="stSidebar"] h2, 
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
     [data-testid="stSidebar"] h3 {
-        color: #ffffff !important;
+        color: #e2e8f0 !important;
         font-weight: 600 !important;
     }
+    [data-testid="stSidebar"] h3 {
+        font-size: 0.75rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #64748b !important;
+        margin-top: 4px;
+    }
     [data-testid="stSidebar"] div[data-testid="stAlert"] {
-        background-color: #0f172a !important;
-        border: 1px solid #334155 !important;
+        background-color: #0b1220 !important;
+        border: 1px solid #1e293b !important;
+        border-left: 3px solid var(--accent) !important;
+        border-radius: 8px !important;
     }
     [data-testid="stSidebar"] div[data-testid="stAlert"] * {
+        color: #cbd5e1 !important;
+        font-family: var(--mono);
+        font-size: 0.78rem !important;
+    }
+
+    /* Sidebar metric tiles — explicitly forced so text is never invisible */
+    [data-testid="stSidebar"] div[data-testid="stMetric"] {
+        background: #0b1220 !important;
+        border: 1px solid #1e293b !important;
+        border-radius: 8px !important;
+        padding: 10px 12px !important;
+    }
+    [data-testid="stSidebar"] div[data-testid="stMetric"] * {
+        color: #f1f5f9 !important;
+    }
+    [data-testid="stSidebar"] div[data-testid="stMetricValue"] {
+        font-family: var(--mono) !important;
+        font-size: 1.4rem !important;
+        font-weight: 700 !important;
         color: #ffffff !important;
     }
-
-    /* Form Controls & Input Styling */
-    input, textarea, select {
-        color: #0f172a !important;
-        background-color: #ffffff !important;
-        border: 1px solid #cbd5e1 !important;
+    [data-testid="stSidebar"] div[data-testid="stMetricLabel"] {
+        font-size: 0.68rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #94a3b8 !important;
     }
 
-    /* Hide 'Press Enter to submit form' instruction overlay in Streamlit forms */
-    div[data-testid="InputInstructions"], 
+    /* ---------- Form controls ---------- */
+    input, textarea, select {
+        color: var(--text) !important;
+        background-color: #ffffff !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 8px !important;
+    }
+    input:focus, textarea:focus, select:focus {
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+    }
+    div[data-testid="InputInstructions"],
     div[data-testid="stInputInstruction"],
     small[data-testid="stInputInstruction"],
     [data-testid="stInputInstruction"],
@@ -110,31 +191,139 @@ st.markdown("""
         padding: 0 !important;
     }
 
-    /* Metric Cards */
+    /* ---------- Buttons ---------- */
+    .stButton > button, .stFormSubmitButton > button {
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        border: 1px solid var(--border) !important;
+        transition: all 0.15s ease !important;
+    }
+    .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] {
+        background: var(--accent) !important;
+        border: 1px solid var(--accent-dark) !important;
+        box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.5) !important;
+    }
+    .stButton > button[kind="primary"]:hover, .stFormSubmitButton > button[kind="primary"]:hover {
+        background: var(--accent-dark) !important;
+        transform: translateY(-1px);
+    }
+
+    /* ---------- Tabs ---------- */
+    button[data-baseweb="tab"] {
+        font-weight: 600 !important;
+        font-size: 0.92rem !important;
+        color: var(--text-muted) !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: var(--accent) !important;
+    }
+    div[data-baseweb="tab-highlight"] {
+        background-color: var(--accent) !important;
+        height: 3px !important;
+    }
+
+    /* ---------- Main-area metric cards ---------- */
     div[data-testid="stMetric"] {
-        background-color: #ffffff !important;
-        border: 1px solid #cbd5e1 !important;
+        background-color: var(--card) !important;
+        border: 1px solid var(--border) !important;
+        border-top: 3px solid var(--accent) !important;
         padding: 14px 16px !important;
         border-radius: 10px !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
     }
     div[data-testid="stMetricValue"] {
-        color: #0f172a !important;
-        font-size: 1.8rem !important;
+        color: var(--text) !important;
+        font-family: var(--mono) !important;
+        font-size: 1.7rem !important;
         font-weight: 700 !important;
     }
     div[data-testid="stMetricLabel"] {
-        color: #475569 !important;
+        color: var(--text-muted) !important;
         font-weight: 600 !important;
+        text-transform: uppercase;
+        font-size: 0.72rem !important;
+        letter-spacing: 0.05em;
     }
 
-    /* Status Badges */
+    /* ---------- Expanders (ticket / leave cards) ---------- */
+    div[data-testid="stExpander"] {
+        border: 1px solid var(--border) !important;
+        border-radius: 10px !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
+        overflow: hidden;
+    }
+    div[data-testid="stExpander"] summary {
+        font-weight: 700 !important;
+        font-family: var(--mono);
+        font-size: 0.88rem !important;
+    }
+
+    /* ---------- Notice board cards ---------- */
+    .card-box {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--accent);
+        border-radius: 10px;
+        padding: 16px 18px;
+        margin-bottom: 14px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        transition: box-shadow 0.15s ease;
+    }
+    .card-box:hover {
+        box-shadow: 0 6px 16px -6px rgba(15,23,42,0.15);
+    }
+
+    /* ---------- Status badges ---------- */
     .badge {
         display: inline-block;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-size: 0.8rem;
+        padding: 3px 11px;
+        border-radius: 999px;
+        font-size: 0.72rem;
         font-weight: 700;
+        font-family: var(--mono);
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .badge::before {
+        content: "●";
+        margin-right: 5px;
+        font-size: 0.6rem;
+    }
+    .badge-pending {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+    }
+    .badge-progress {
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid #fde68a;
+    }
+    .badge-resolved {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+    }
+    .badge-rejected {
+        background: #e2e8f0;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+    }
+
+    /* ---------- Ticket / Leave IDs in monospace wherever they appear ---------- */
+    code {
+        font-family: var(--mono) !important;
+        background: #eef2f7 !important;
+        color: #1e293b !important;
+        padding: 1px 6px !important;
+        border-radius: 4px !important;
+    }
+
+    /* ---------- Dataframe polish ---------- */
+    [data-testid="stDataFrame"] {
+        border: 1px solid var(--border) !important;
+        border-radius: 10px !important;
+        overflow: hidden;
     }
 </style>
 """, unsafe_allow_html=True)
