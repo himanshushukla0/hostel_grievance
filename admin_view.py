@@ -29,6 +29,11 @@ class AdminView:
         self.notice_tab = ttk.Frame(self.admin_notebook, padding="10")
         self.admin_notebook.add(self.notice_tab, text="📢 Notice Board & Circulars")
         self.setup_notice_tab()
+        
+        # Tab 3: Student Leave & Gate Pass Roster
+        self.leave_admin_tab = ttk.Frame(self.admin_notebook, padding="10")
+        self.admin_notebook.add(self.leave_admin_tab, text="🌴 Student Leave & Gate Pass Roster")
+        self.setup_leave_admin_tab()
 
     def setup_dispatch_tab(self):
         # 1. Header & Warden KPI Metrics Bar
@@ -210,13 +215,27 @@ class AdminView:
         blocks = ["All Blocks", "BH-1", "BH-2", "BH-3", "GH-1", "GH-2", "IH-1"]
         self.notice_block_dropdown = ttk.Combobox(pub_frame, textvariable=self.notice_block_var, values=blocks, state="readonly", width=42)
         self.notice_block_dropdown.grid(row=2, column=1, sticky="w", pady=4, padx=8)
+
+        ttk.Label(pub_frame, text="Active Duration / Timer:").grid(row=3, column=0, sticky="w", pady=4)
+        self.notice_duration_var = tk.StringVar(value="📌 Permanent (No Expiration)")
+        durations = [
+            "📌 Permanent (No Expiration)",
+            "⏱️ 1 Hour",
+            "⏱️ 12 Hours",
+            "⏱️ 24 Hours (1 Day)",
+            "⏱️ 2 Days (48 Hours)",
+            "⏱️ 3 Days (72 Hours)",
+            "⏱️ 7 Days (1 Week)"
+        ]
+        self.notice_duration_dropdown = ttk.Combobox(pub_frame, textvariable=self.notice_duration_var, values=durations, state="readonly", width=42)
+        self.notice_duration_dropdown.grid(row=3, column=1, sticky="w", pady=4, padx=8)
         
-        ttk.Label(pub_frame, text="Announcement Content:").grid(row=3, column=0, sticky="nw", pady=4)
+        ttk.Label(pub_frame, text="Announcement Content:").grid(row=4, column=0, sticky="nw", pady=4)
         self.notice_content_text = tk.Text(pub_frame, width=45, height=3)
-        self.notice_content_text.grid(row=3, column=1, sticky="w", pady=4, padx=8)
+        self.notice_content_text.grid(row=4, column=1, sticky="w", pady=4, padx=8)
         
         pub_btn = ttk.Button(pub_frame, text="🚀 Publish Notice to Resident Board", command=self.publish_notice, style="Primary.TButton")
-        pub_btn.grid(row=4, column=1, sticky="e", pady=8, padx=8)
+        pub_btn.grid(row=5, column=1, sticky="e", pady=8, padx=8)
         
         # Published Notices Table Frame with Scrollbar
         list_frame = ttk.LabelFrame(self.notice_tab, text="Active Published Notices", padding="8")
@@ -225,7 +244,7 @@ class AdminView:
         notice_tree_frame = ttk.Frame(list_frame)
         notice_tree_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
 
-        columns = ("id", "date", "category", "block", "title", "posted_by")
+        columns = ("id", "date", "expires", "category", "block", "title", "posted_by")
         self.notice_tree = ttk.Treeview(notice_tree_frame, columns=columns, show="headings", height=5)
         
         notice_scroll = ttk.Scrollbar(notice_tree_frame, orient="vertical", command=self.notice_tree.yview)
@@ -233,17 +252,19 @@ class AdminView:
 
         self.notice_tree.heading("id", text="ID")
         self.notice_tree.heading("date", text="Date Posted")
+        self.notice_tree.heading("expires", text="Active Until")
         self.notice_tree.heading("category", text="Category")
         self.notice_tree.heading("block", text="Target Block")
         self.notice_tree.heading("title", text="Title")
         self.notice_tree.heading("posted_by", text="Verified By")
         
         self.notice_tree.column("id", width=40, anchor="center")
-        self.notice_tree.column("date", width=130, anchor="center")
-        self.notice_tree.column("category", width=150)
-        self.notice_tree.column("block", width=90, anchor="center")
-        self.notice_tree.column("title", width=220)
-        self.notice_tree.column("posted_by", width=140)
+        self.notice_tree.column("date", width=120, anchor="center")
+        self.notice_tree.column("expires", width=120, anchor="center")
+        self.notice_tree.column("category", width=140)
+        self.notice_tree.column("block", width=80, anchor="center")
+        self.notice_tree.column("title", width=180)
+        self.notice_tree.column("posted_by", width=120)
         
         self.notice_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         notice_scroll.pack(side=tk.RIGHT, fill=tk.Y)
@@ -267,13 +288,25 @@ class AdminView:
             messagebox.showerror("Validation Error", "Please provide both a Title and Announcement Content.")
             return
             
+        duration_map = {
+            "📌 Permanent (No Expiration)": 0,
+            "⏱️ 1 Hour": 1,
+            "⏱️ 12 Hours": 12,
+            "⏱️ 24 Hours (1 Day)": 24,
+            "⏱️ 2 Days (48 Hours)": 48,
+            "⏱️ 3 Days (72 Hours)": 72,
+            "⏱️ 7 Days (1 Week)": 168
+        }
+        exp_h = duration_map.get(self.notice_duration_var.get(), 0)
+
         try:
             notice_id = database.create_notice(
                 title=title,
                 content=content,
                 category=category,
                 target_block=block,
-                posted_by="Warden Office ✔"
+                posted_by="Warden Office ✔",
+                expiry_hours=exp_h
             )
             messagebox.showinfo("Published", f"Notice #{notice_id} published successfully to {block}!")
             
@@ -291,14 +324,141 @@ class AdminView:
             
         notices = database.get_all_notices()
         for n in notices:
+            exp_display = n['expires_at'] if n.get('expires_at') else "Permanent"
             self.notice_tree.insert("", tk.END, values=(
                 n['notice_id'],
                 n['date_posted'],
+                exp_display,
                 n['category'],
                 n['target_block'],
                 n['title'],
                 n['posted_by']
             ))
+
+    def delete_notice(self):
+        selected = self.notice_tree.selection()
+        if not selected:
+            messagebox.showerror("Error", "Please select a notice from the table to delete.")
+            return
+
+    def setup_leave_admin_tab(self):
+        # Header & Filter Bar
+        hdr = ttk.Frame(self.leave_admin_tab)
+        hdr.pack(fill=tk.X, pady=(0, 8))
+        ttk.Label(hdr, text="Student Outstation Leave & Gate Pass Roster", font=("Segoe UI", 12, "bold"), foreground="#1e293b").pack(side=tk.LEFT)
+        ttk.Button(hdr, text="🔄 Refresh Leave Roster", command=self.load_leave_data).pack(side=tk.RIGHT)
+
+        # Leave Treeview Table Frame
+        tree_frame = ttk.Frame(self.leave_admin_tab)
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+
+        columns = ("id", "block", "room", "name", "teacher", "from", "to", "dest", "status", "pass")
+        self.leave_tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=6)
+        
+        l_scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self.leave_tree.yview)
+        self.leave_tree.configure(yscrollcommand=l_scroll.set)
+
+        for col, label in [
+            ("id", "ID"), ("block", "Block"), ("room", "Room"), ("name", "Student Name"), 
+            ("teacher", "Granting Teacher"), ("from", "From"), ("to", "To"), 
+            ("dest", "Destination"), ("status", "Status"), ("pass", "Gate Pass Code")
+        ]:
+            self.leave_tree.heading(col, text=label)
+            
+        self.leave_tree.column("id", width=35, anchor="center")
+        self.leave_tree.column("block", width=60, anchor="center")
+        self.leave_tree.column("room", width=55, anchor="center")
+        self.leave_tree.column("name", width=120)
+        self.leave_tree.column("teacher", width=130)
+        self.leave_tree.column("from", width=85, anchor="center")
+        self.leave_tree.column("to", width=85, anchor="center")
+        self.leave_tree.column("dest", width=110)
+        self.leave_tree.column("status", width=130, anchor="center")
+        self.leave_tree.column("pass", width=95, anchor="center")
+
+        self.leave_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        l_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.leave_tree.bind("<<TreeviewSelect>>", self.on_leave_select)
+
+        # Action Panel
+        self.l_action_frame = ttk.LabelFrame(self.leave_admin_tab, text="Warden Gate Pass Authorization Panel", padding="10")
+        self.l_action_frame.pack(fill=tk.X, pady=8)
+
+        ttk.Label(self.l_action_frame, text="Selected Application:").grid(row=0, column=0, sticky="w", pady=3)
+        self.selected_leave_var = tk.StringVar(value="None (Click a row above)")
+        ttk.Label(self.l_action_frame, textvariable=self.selected_leave_var, font=("Segoe UI", 10, "bold")).grid(row=0, column=1, sticky="w", pady=3)
+
+        ttk.Label(self.l_action_frame, text="Granting Teacher Sign-off:").grid(row=1, column=0, sticky="w", pady=3)
+        self.selected_teacher_var = tk.StringVar(value="-")
+        ttk.Label(self.l_action_frame, textvariable=self.selected_teacher_var, font=("Segoe UI", 9, "bold"), foreground="#0369a1").grid(row=1, column=1, sticky="w", pady=3)
+
+        ttk.Label(self.l_action_frame, text="Approval & Gate Pass:").grid(row=2, column=0, sticky="w", pady=3)
+        l_act_sub = ttk.Frame(self.l_action_frame)
+        l_act_sub.grid(row=2, column=1, sticky="w", pady=3)
+
+        self.l_status_var = tk.StringVar(value="Pending Warden Approval")
+        ttk.Combobox(l_act_sub, textvariable=self.l_status_var, values=["Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"], state="readonly", width=22).pack(side=tk.LEFT, padx=(0, 10))
+
+        ttk.Label(l_act_sub, text="Pass Code:").pack(side=tk.LEFT, padx=(5, 2))
+        self.l_pass_entry = ttk.Entry(l_act_sub, width=15)
+        self.l_pass_entry.pack(side=tk.LEFT)
+
+        ttk.Button(self.l_action_frame, text="💾 Save Leave Authorization", command=self.update_leave_authorization).grid(row=3, column=1, sticky="e", pady=5)
+
+        self.selected_leave_id = None
+        self.load_leave_data()
+
+    def load_leave_data(self):
+        for item in self.leave_tree.get_children():
+            self.leave_tree.delete(item)
+        leaves = database.get_all_leave_applications()
+        for rec in leaves:
+            self.leave_tree.insert("", tk.END, values=(
+                rec['leave_id'],
+                rec.get('block_name', 'BH-1'),
+                rec['room_number'],
+                rec['student_name'],
+                rec['granting_teacher'],
+                rec['from_date'],
+                rec['to_date'],
+                rec['destination'],
+                rec['status'],
+                rec.get('gate_pass_code', '')
+            ))
+
+    def on_leave_select(self, event):
+        selected = self.leave_tree.selection()
+        if not selected:
+            return
+        item = self.leave_tree.item(selected[0])
+        values = item['values']
+        if values:
+            try:
+                lid = int(values[0])
+            except ValueError:
+                return
+            rec = database.get_leave_application_by_id(lid)
+            if rec:
+                self.selected_leave_id = lid
+                self.selected_leave_var.set(f"#L-{lid}  |  {rec['student_name']} ({rec['block_name']} Room {rec['room_number']})")
+                self.selected_teacher_var.set(f"Faculty Approval: {rec['granting_teacher']} | Destination: {rec['destination']}")
+                self.l_status_var.set(rec['status'])
+                self.l_pass_entry.delete(0, tk.END)
+                gp = rec.get('gate_pass_code') or f"GP-2026-X{lid:03d}"
+                self.l_pass_entry.insert(0, gp)
+
+    def update_leave_authorization(self):
+        if not self.selected_leave_id:
+            messagebox.showerror("Error", "No leave application selected.")
+            return
+        status = self.l_status_var.get()
+        pass_code = self.l_pass_entry.get().strip() if "Approved" in status else ""
+        try:
+            database.update_leave_status(self.selected_leave_id, status, warden_remarks="Warden Authorized", gate_pass_code=pass_code)
+            messagebox.showinfo("Updated", f"Leave Application #L-{self.selected_leave_id} status updated to '{status}'.")
+            self.load_leave_data()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to update leave application: {e}")
 
     def delete_notice(self):
         selected = self.notice_tree.selection()
