@@ -4,6 +4,9 @@ import sqlite3
 import datetime
 import py_compile
 
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 print("==================================================")
 print("     COMPREHENSIVE HOSTEL SYSTEM RE-VERIFICATION")
 print("==================================================")
@@ -82,22 +85,45 @@ assert len(search_cat) >= 1
 assert len(search_sug) >= 1
 print("  [OK] Search functionality verified across Name, Room, Category, and Suggestion.")
 
-# Test 2.6: Notice Board DB Operations
+# Test 2.5b: Forgot Ticket ID Dual Room & Name Lookup
+dual_search = database.get_grievances_by_room_and_name("B-204", "Alice Smith")
+assert len(dual_search) >= 1
+assert dual_search[0]['grievance_id'] == g_id_1
+assert len(database.get_grievances_by_room_and_name("B-204", "Wrong Student")) == 0
+print("  [OK] Secure Forgot-ID dual Room & Student Name lookup verified.")
+
+# Test 2.6: Notice Board DB Operations & Active Timers
 n_id = database.create_notice(
     title="BH-1 Tank Inspection", 
     content="Water supply off from 2-4 PM.", 
     category="Maintenance Warning & Inspection", 
     target_block="BH-1"
 )
+n_id_timed = database.create_notice(
+    title="Timed Notice Test",
+    content="Expires in 24 hours.",
+    category="Maintenance Warning & Inspection",
+    target_block="BH-1",
+    expiry_hours=24
+)
+n_id_exp = database.create_notice(
+    title="Expired Notice Test",
+    content="Expired 1 hour ago.",
+    category="Maintenance Warning & Inspection",
+    target_block="BH-1",
+    expiry_hours=-1
+)
 notices = database.get_all_notices(block_filter="BH-1")
-assert len(notices) >= 1
-assert notices[0]['notice_id'] == n_id
-print(f"  [OK] Created & Verified Notice #{n_id}: '{notices[0]['title']}'.")
+assert any(n['notice_id'] == n_id for n in notices)
+assert any(n['notice_id'] == n_id_timed for n in notices)
+assert not any(n['notice_id'] == n_id_exp for n in notices)
+print(f"  [OK] Created & Verified Notice #{n_id}: '{notices[0]['title']}' with Expiry Timers & Auto-Purge.")
 
 # Clean up test rows
 database.delete_grievance(g_id_1)
 database.delete_grievance(g_id_2)
 database.delete_notice(n_id)
+database.delete_notice(n_id_timed)
 
 # Step 3: GUI Class Structure & Tkinter Headless Validation
 print("\n[Step 3] Verifying Tkinter GUI Classes (Headless Test)...")
@@ -119,6 +145,8 @@ student_view = StudentView(student_frame)
 assert hasattr(student_view, 'submit_grievance')
 assert hasattr(student_view, 'check_status')
 assert hasattr(student_view, 'setup_notices_tab')
+assert hasattr(student_view, 'setup_leave_tab')
+assert hasattr(student_view, 'submit_leave_application')
 
 # Test student_view form submission programmatically
 student_view.name_entry.insert(0, "Test Student")
@@ -140,12 +168,15 @@ admin_view = AdminView(admin_frame)
 assert hasattr(admin_view, 'load_data')
 assert hasattr(admin_view, 'publish_notice')
 assert hasattr(admin_view, 'load_notices')
+assert hasattr(admin_view, 'setup_leave_admin_tab')
+assert hasattr(admin_view, 'load_leave_data')
+assert hasattr(admin_view, 'update_leave_authorization')
 
 admin_view.search_entry.insert(0, "D-404")
 admin_view.load_data()
 children = admin_view.tree.get_children()
 assert len(children) >= 1
-print(f"  [OK] AdminView table filtering and Notice Board manager verified.")
+print(f"  [OK] AdminView table filtering, Notice Board, and Student Leave Roster manager verified.")
 
 # Cleanup test row
 database.delete_grievance(new_g_id)
