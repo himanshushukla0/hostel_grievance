@@ -52,11 +52,18 @@ st.markdown("""
 
     .stApp { background: var(--bg) !important; transition: background 0.2s ease; }
 
-    .stApp .main h1, .stApp .main h2, .stApp .main h3, .stApp .main h4, .stApp .main h5, .stApp .main h6,
-    .stApp .main p, .stApp .main label, .stApp .main span, .stApp .main div {
-        color: var(--text) !important;
-    }
-    .stApp .main h1, .stApp .main h2, .stApp .main h3 { letter-spacing: -0.02em; font-weight: 800 !important; }
+    /* Catch-all: every element inside the app inherits the theme text color.
+       More specific rules below (header, sidebar, badges) override this
+       where a fixed color is actually wanted — that's normal CSS cascade,
+       not a conflict. This replaces the old ".stApp .main h1, p, label..."
+       list, which silently failed to match some elements depending on the
+       Streamlit version's internal DOM and left them at a default dark
+       color even in dark mode. */
+    .stApp * { color: var(--text) !important; }
+    .stApp h1, .stApp h2, .stApp h3 { letter-spacing: -0.02em; font-weight: 800 !important; }
+
+    .stButton > button, .stFormSubmitButton > button { color: var(--text) !important; }
+    .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] { color: #ffffff !important; }
 
     /* ---------- Header + ticker merged into ONE unit ---------- */
     .app-header {
