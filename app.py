@@ -27,20 +27,25 @@ st.markdown("""
     }
 
     :root {
-        --bg: #f4f6fb;
+        --bg: #f7f3ec;
         --card: #ffffff;
-        --border: #e2e8f0;
-        --text: #0f172a;
-        --text-muted: #64748b;
-        --accent: #4f46e5;
-        --accent-2: #2563eb;
+        --border: #e7ded0;
+        --text: #1c1f2b;
+        --text-muted: #6b6f7d;
+        --gold: #ca8a04;
+        --gold-dark: #a16207;
+        --navy: #1e3a5f;
+        --navy-deep: #0f172a;
+        --teal: #0f766e;
+        --green: #15803d;
         --danger: #dc2626;
         --warning: #d97706;
-        --success: #16a34a;
         --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     }
 
-    .stApp { background: var(--bg) !important; }
+    .stApp {
+        background: linear-gradient(180deg, #faf7f0 0%, #f7f3ec 260px, #f4efe4 100%) !important;
+    }
 
     .stApp .main h1, .stApp .main h2, .stApp .main h3, .stApp .main h4, .stApp .main h5, .stApp .main h6,
     .stApp .main p, .stApp .main label, .stApp .main span, .stApp .main div {
@@ -53,11 +58,13 @@ st.markdown("""
 
     /* ---------- Header ---------- */
     .main-header {
-        background: linear-gradient(120deg, #4338ca 0%, #3730a3 45%, #0f172a 100%) !important;
+        background: linear-gradient(120deg, var(--navy-deep) 0%, var(--navy) 60%, #16324f 100%) !important;
         padding: 30px 34px;
         border-radius: 18px;
         margin-bottom: 16px;
-        box-shadow: 0 16px 40px -16px rgba(67, 56, 202, 0.45);
+        border-top: 4px solid var(--gold);
+        box-shadow: 0 18px 40px -18px rgba(15, 23, 42, 0.55), 0 0 0 1px rgba(202, 138, 4, 0.15);
+        position: relative;
     }
     .main-header h1 {
         color: #ffffff !important;
@@ -67,7 +74,7 @@ st.markdown("""
         letter-spacing: -0.01em;
     }
     .main-header p {
-        color: #c7d2fe !important;
+        color: #cbd5e1 !important;
         font-size: 0.88rem;
         margin-top: 6px;
         margin-bottom: 0;
@@ -76,10 +83,10 @@ st.markdown("""
 
     /* ---------- Notice ticker ---------- */
     .notice-banner {
-        background: #fffbeb !important;
-        border: 1px solid #fde68a !important;
-        border-left: 4px solid var(--warning) !important;
-        color: #92400e !important;
+        background: #fef8e8 !important;
+        border: 1px solid #f3d98b !important;
+        border-left: 4px solid var(--gold) !important;
+        color: #7c5a05 !important;
         padding: 12px 18px;
         border-radius: 10px;
         font-weight: 600;
@@ -87,7 +94,7 @@ st.markdown("""
         margin-bottom: 24px;
     }
 
-    /* ---------- KPI dashboard row (main content) ---------- */
+    /* ---------- KPI dashboard row ---------- */
     .kpi-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -105,12 +112,12 @@ st.markdown("""
         align-items: center;
         gap: 14px;
         border: 1px solid var(--border);
-        box-shadow: 0 4px 14px -6px rgba(15, 23, 42, 0.08);
+        box-shadow: 0 4px 14px -6px rgba(30, 58, 95, 0.1);
         transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
     .kpi-card:hover {
         transform: translateY(-3px);
-        box-shadow: 0 12px 26px -8px rgba(15, 23, 42, 0.18);
+        box-shadow: 0 14px 28px -10px rgba(30, 58, 95, 0.22);
     }
     .kpi-icon {
         width: 46px;
@@ -137,28 +144,29 @@ st.markdown("""
         letter-spacing: 0.04em;
         margin-top: 5px;
     }
-    .kpi-blue .kpi-icon { background: #dbeafe; color: #1d4ed8; }
-    .kpi-blue { border-top: 3px solid var(--accent-2); }
-    .kpi-amber .kpi-icon { background: #fef3c7; color: #b45309; }
-    .kpi-amber { border-top: 3px solid var(--warning); }
-    .kpi-violet .kpi-icon { background: #ede9fe; color: #6d28d9; }
-    .kpi-violet { border-top: 3px solid var(--accent); }
-    .kpi-green .kpi-icon { background: #dcfce7; color: #15803d; }
-    .kpi-green { border-top: 3px solid var(--success); }
+    .kpi-navy .kpi-icon { background: #e2e8f5; color: var(--navy); }
+    .kpi-navy { border-top: 3px solid var(--navy); }
+    .kpi-gold .kpi-icon { background: #fef3c7; color: var(--gold-dark); }
+    .kpi-gold { border-top: 3px solid var(--gold); }
+    .kpi-teal .kpi-icon { background: #ccfbf1; color: var(--teal); }
+    .kpi-teal { border-top: 3px solid var(--teal); }
+    .kpi-green .kpi-icon { background: #dcfce7; color: var(--green); }
+    .kpi-green { border-top: 3px solid var(--green); }
 
     .emergency-strip {
-        background: linear-gradient(90deg, #dc2626, #b91c1c);
+        background: linear-gradient(90deg, #b91c1c, #7f1d1d);
         color: #fff;
         padding: 13px 18px;
         border-radius: 12px;
         font-weight: 700;
         margin-bottom: 22px;
-        box-shadow: 0 8px 22px -6px rgba(220, 38, 38, 0.5);
+        box-shadow: 0 8px 22px -6px rgba(127, 29, 29, 0.5);
     }
 
     /* ---------- Sidebar ---------- */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1e1b4b 0%, #0f172a 100%) !important;
+        background: linear-gradient(180deg, #0f172a 0%, #16213a 55%, #0f172a 100%) !important;
+        border-right: 2px solid var(--gold);
     }
     [data-testid="stSidebar"] *,
     [data-testid="stSidebar"] label,
@@ -168,17 +176,23 @@ st.markdown("""
     [data-testid="stSidebar"] h1,
     [data-testid="stSidebar"] h2,
     [data-testid="stSidebar"] h3 {
-        color: #e2e8f0 !important;
+        color: #e5e9f0 !important;
         font-weight: 600 !important;
     }
+    [data-testid="stSidebar"] h3 {
+        color: var(--gold) !important;
+        font-size: 0.8rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
     [data-testid="stSidebar"] div[data-testid="stAlert"] {
-        background-color: rgba(255,255,255,0.06) !important;
-        border: 1px solid rgba(255,255,255,0.12) !important;
-        border-left: 3px solid #818cf8 !important;
+        background-color: rgba(202, 138, 4, 0.08) !important;
+        border: 1px solid rgba(202, 138, 4, 0.35) !important;
+        border-left: 3px solid var(--gold) !important;
         border-radius: 10px !important;
     }
     [data-testid="stSidebar"] div[data-testid="stAlert"] * {
-        color: #e0e7ff !important;
+        color: #fde68a !important;
         font-size: 0.82rem !important;
     }
     [data-testid="stSidebar"] div[data-testid="stMetric"] * {
@@ -193,8 +207,8 @@ st.markdown("""
         border-radius: 10px !important;
     }
     input:focus, textarea:focus, select:focus {
-        border-color: var(--accent) !important;
-        box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12) !important;
+        border-color: var(--gold) !important;
+        box-shadow: 0 0 0 4px rgba(202, 138, 4, 0.15) !important;
     }
     div[data-testid="InputInstructions"],
     div[data-testid="stInputInstruction"],
@@ -219,13 +233,18 @@ st.markdown("""
         transition: all 0.15s ease !important;
     }
     .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] {
-        background: linear-gradient(135deg, var(--accent-2), var(--accent)) !important;
+        background: linear-gradient(135deg, var(--gold), var(--gold-dark)) !important;
         border: none !important;
-        box-shadow: 0 6px 16px -4px rgba(79, 70, 229, 0.5) !important;
+        color: #1c1405 !important;
+        box-shadow: 0 6px 16px -4px rgba(202, 138, 4, 0.55) !important;
+    }
+    .stButton > button[kind="primary"] p, .stFormSubmitButton > button[kind="primary"] p {
+        color: #1c1405 !important;
+        font-weight: 700 !important;
     }
     .stButton > button[kind="primary"]:hover, .stFormSubmitButton > button[kind="primary"]:hover {
         transform: translateY(-1px);
-        box-shadow: 0 10px 22px -4px rgba(79, 70, 229, 0.6) !important;
+        box-shadow: 0 10px 22px -4px rgba(202, 138, 4, 0.65) !important;
     }
 
     /* ---------- Tabs ---------- */
@@ -235,10 +254,10 @@ st.markdown("""
         color: var(--text-muted) !important;
     }
     button[data-baseweb="tab"][aria-selected="true"] {
-        color: var(--accent) !important;
+        color: var(--navy) !important;
     }
     div[data-baseweb="tab-highlight"] {
-        background-color: var(--accent) !important;
+        background-color: var(--gold) !important;
         height: 3px !important;
     }
 
@@ -246,10 +265,10 @@ st.markdown("""
     div[data-testid="stMetric"] {
         background-color: var(--card) !important;
         border: 1px solid var(--border) !important;
-        border-top: 3px solid var(--accent) !important;
+        border-top: 3px solid var(--navy) !important;
         padding: 14px 16px !important;
         border-radius: 12px !important;
-        box-shadow: 0 4px 14px -6px rgba(15,23,42,0.08) !important;
+        box-shadow: 0 4px 14px -6px rgba(30,58,95,0.1) !important;
     }
     div[data-testid="stMetricValue"] {
         color: var(--text) !important;
@@ -269,7 +288,7 @@ st.markdown("""
     div[data-testid="stExpander"] {
         border: 1px solid var(--border) !important;
         border-radius: 14px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.03) !important;
+        box-shadow: 0 2px 8px rgba(30,58,95,0.05) !important;
         overflow: hidden;
     }
     div[data-testid="stExpander"] summary {
@@ -281,19 +300,19 @@ st.markdown("""
     .card-box {
         background: var(--card);
         border: 1px solid var(--border);
-        border-left: 4px solid var(--accent);
+        border-left: 4px solid var(--gold);
         border-radius: 14px;
         padding: 18px 20px;
         margin-bottom: 14px;
-        box-shadow: 0 4px 14px -6px rgba(15,23,42,0.06);
+        box-shadow: 0 4px 14px -6px rgba(30,58,95,0.08);
         transition: box-shadow 0.15s ease, transform 0.15s ease;
     }
     .card-box:hover {
-        box-shadow: 0 10px 24px -8px rgba(15,23,42,0.15);
+        box-shadow: 0 10px 24px -8px rgba(30,58,95,0.18);
         transform: translateY(-2px);
     }
 
-    /* ---------- Status badges ---------- */
+    /* ---------- Status badges (semantic — kept independent of brand color) ---------- */
     .badge {
         display: inline-block;
         padding: 4px 12px;
@@ -309,8 +328,8 @@ st.markdown("""
 
     code {
         font-family: var(--mono) !important;
-        background: #eef2ff !important;
-        color: #3730a3 !important;
+        background: #fef3c7 !important;
+        color: #7c5a05 !important;
         padding: 1px 7px !important;
         border-radius: 5px !important;
     }
@@ -360,21 +379,21 @@ counts = database.get_grievance_counts()
 
 kpi_html = f"""
 <div class="kpi-grid">
-    <div class="kpi-card kpi-blue">
+    <div class="kpi-card kpi-navy">
         <div class="kpi-icon">🗂️</div>
         <div>
             <div class="kpi-value">{counts['total']}</div>
             <div class="kpi-label">Total Tickets</div>
         </div>
     </div>
-    <div class="kpi-card kpi-amber">
+    <div class="kpi-card kpi-gold">
         <div class="kpi-icon">⏳</div>
         <div>
             <div class="kpi-value">{counts['pending']}</div>
             <div class="kpi-label">Pending</div>
         </div>
     </div>
-    <div class="kpi-card kpi-violet">
+    <div class="kpi-card kpi-teal">
         <div class="kpi-icon">🔧</div>
         <div>
             <div class="kpi-value">{counts['in_progress']}</div>
