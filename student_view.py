@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
+import datetime
 import database
 
 class StudentView:
@@ -23,7 +24,12 @@ class StudentView:
         self.notebook.add(self.track_tab, text="🔍 Track Complaint Status")
         self.setup_track_tab()
         
-        # Tab 3: Campus Notices & Circulars
+        # Tab 3: Leave & Gate Pass
+        self.leave_tab = ttk.Frame(self.notebook, padding="15")
+        self.notebook.add(self.leave_tab, text="🌴 Leave & Gate Pass")
+        self.setup_leave_tab()
+        
+        # Tab 4: Campus Notices & Circulars
         self.notices_tab = ttk.Frame(self.notebook, padding="15")
         self.notebook.add(self.notices_tab, text="📢 Campus & Hostel Notices")
         self.setup_notices_tab()
@@ -140,10 +146,91 @@ class StudentView:
     def display_notice_details(self, notice):
         self.notice_title_var.set(f"📢 {notice['title']}")
         posted_by = notice.get('posted_by', 'Warden Office')
+        exp_info = f"⏳ Active until: {notice['expires_at']}" if notice.get('expires_at') else "📌 Permanent Notice"
         self.notice_meta_var.set(
-            f"✔ Verified by: {posted_by}  |  Category: {notice['category']}  |  Target: {notice['target_block']}  |  Date: {notice['date_posted']}"
+            f"✔ Verified by: {posted_by}  |  Category: {notice['category']}  |  Target: {notice['target_block']}  |  Date: {notice['date_posted']}  |  {exp_info}"
         )
         self.notice_body_var.set(notice['content'])
+
+    def setup_leave_tab(self):
+        form_frame = ttk.LabelFrame(self.leave_tab, text="Student Outstation Leave Application Form", padding="12")
+        form_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        ttk.Label(form_frame, text="Student Name:").grid(row=0, column=0, sticky="w", pady=3)
+        self.l_name_entry = ttk.Entry(form_frame, width=35)
+        self.l_name_entry.grid(row=0, column=1, sticky="w", pady=3, padx=5)
+
+        ttk.Label(form_frame, text="Hostel Block & Room:").grid(row=1, column=0, sticky="w", pady=3)
+        l_sub = ttk.Frame(form_frame)
+        l_sub.grid(row=1, column=1, sticky="w", pady=3, padx=5)
+        self.l_block_var = tk.StringVar(value="BH-1")
+        ttk.Combobox(l_sub, textvariable=self.l_block_var, values=["BH-1", "BH-2", "BH-3", "GH-1", "GH-2", "IH-1"], width=8, state="readonly").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(l_sub, text="Room:").pack(side=tk.LEFT, padx=(5, 2))
+        self.l_room_entry = ttk.Entry(l_sub, width=12)
+        self.l_room_entry.pack(side=tk.LEFT)
+
+        ttk.Label(form_frame, text="Student Contact #:").grid(row=2, column=0, sticky="w", pady=3)
+        self.l_phone_entry = ttk.Entry(form_frame, width=35)
+        self.l_phone_entry.grid(row=2, column=1, sticky="w", pady=3, padx=5)
+
+        ttk.Label(form_frame, text="Parent Contact #:").grid(row=3, column=0, sticky="w", pady=3)
+        self.l_parent_entry = ttk.Entry(form_frame, width=35)
+        self.l_parent_entry.grid(row=3, column=1, sticky="w", pady=3, padx=5)
+
+        ttk.Label(form_frame, text="Granting Teacher/Faculty:").grid(row=4, column=0, sticky="w", pady=3)
+        self.l_teacher_entry = ttk.Entry(form_frame, width=35)
+        self.l_teacher_entry.grid(row=4, column=1, sticky="w", pady=3, padx=5)
+
+        ttk.Label(form_frame, text="Destination & Reason:").grid(row=5, column=0, sticky="w", pady=3)
+        l_dest_sub = ttk.Frame(form_frame)
+        l_dest_sub.grid(row=5, column=1, sticky="w", pady=3, padx=5)
+        self.l_dest_entry = ttk.Entry(l_dest_sub, width=18)
+        self.l_dest_entry.pack(side=tk.LEFT, padx=(0, 5))
+        self.l_reason_var = tk.StringVar(value="Home Visit")
+        ttk.Combobox(l_dest_sub, textvariable=self.l_reason_var, values=["Home Visit", "Medical", "Academic", "Personal"], width=12, state="readonly").pack(side=tk.LEFT)
+
+        ttk.Label(form_frame, text="From Date / To Date:").grid(row=6, column=0, sticky="w", pady=3)
+        dates_sub = ttk.Frame(form_frame)
+        dates_sub.grid(row=6, column=1, sticky="w", pady=3, padx=5)
+        today_str = datetime.date.today().strftime("%Y-%m-%d")
+        next_str = (datetime.date.today() + datetime.timedelta(days=2)).strftime("%Y-%m-%d")
+        self.l_from_entry = ttk.Entry(dates_sub, width=12)
+        self.l_from_entry.insert(0, today_str)
+        self.l_from_entry.pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(dates_sub, text="to").pack(side=tk.LEFT, padx=3)
+        self.l_to_entry = ttk.Entry(dates_sub, width=12)
+        self.l_to_entry.insert(0, next_str)
+        self.l_to_entry.pack(side=tk.LEFT)
+
+        ttk.Button(form_frame, text="🌴 Submit Leave Application", command=self.submit_leave_application).grid(row=7, column=1, sticky="e", pady=8, padx=5)
+
+    def submit_leave_application(self):
+        name = self.l_name_entry.get().strip()
+        block = self.l_block_var.get()
+        room = self.l_room_entry.get().strip()
+        phone = self.l_phone_entry.get().strip()
+        parent_phone = self.l_parent_entry.get().strip()
+        teacher = self.l_teacher_entry.get().strip()
+        dest = self.l_dest_entry.get().strip()
+        reason = self.l_reason_var.get()
+        from_date = self.l_from_entry.get().strip()
+        to_date = self.l_to_entry.get().strip()
+
+        if not name or not room or not phone or not parent_phone or not teacher or not dest:
+            messagebox.showerror("Validation Error", "Please fill in all fields including Granting Teacher Name.")
+            return
+
+        try:
+            lid = database.create_leave_application(name, block, room, phone, parent_phone, reason, dest, from_date, to_date, teacher)
+            messagebox.showinfo("Submitted", f"Leave Application #L-{lid} submitted successfully!\nYour warden will review faculty sign-off and issue gate pass.")
+            self.l_name_entry.delete(0, tk.END)
+            self.l_room_entry.delete(0, tk.END)
+            self.l_phone_entry.delete(0, tk.END)
+            self.l_parent_entry.delete(0, tk.END)
+            self.l_teacher_entry.delete(0, tk.END)
+            self.l_dest_entry.delete(0, tk.END)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to submit leave application: {e}")
 
 
     def setup_submit_tab(self):
@@ -268,6 +355,7 @@ class StudentView:
             
             # Switch to track tab & auto-search
             self.search_mode_var.set("Grievance ID")
+            self.toggle_search_mode()
             self.id_entry.delete(0, tk.END)
             self.id_entry.insert(0, str(grievance_id))
             self.notebook.select(self.track_tab)
@@ -285,21 +373,47 @@ class StudentView:
         search_combobox = ttk.Combobox(
             search_frame, 
             textvariable=self.search_mode_var, 
-            values=["Grievance ID", "Room Number / Name"], 
+            values=["Grievance ID", "Forgot ID (Room No. & Student Name)"], 
             state="readonly", 
-            width=18
+            width=32
         )
         search_combobox.pack(side=tk.LEFT, padx=(0, 10))
+        search_combobox.bind("<<ComboboxSelected>>", lambda e: self.toggle_search_mode())
         
-        self.id_entry = ttk.Entry(search_frame, width=22)
-        self.id_entry.pack(side=tk.LEFT, padx=(0, 10))
+        # Subframe 1: Grievance ID Entry
+        self.id_subframe = ttk.Frame(search_frame)
+        self.id_entry = ttk.Entry(self.id_subframe, width=18)
+        self.id_entry.pack(side=tk.LEFT, padx=(0, 5))
         self.id_entry.bind("<Return>", lambda event: self.check_status())
         
-        check_btn = ttk.Button(search_frame, text="Search", command=self.check_status)
-        check_btn.pack(side=tk.LEFT, padx=(0, 10))
+        # Subframe 2: Forgot ID (Room Number & Student Name) Entries
+        self.forgot_subframe = ttk.Frame(search_frame)
+        ttk.Label(self.forgot_subframe, text="Room:").pack(side=tk.LEFT, padx=(0, 2))
+        self.room_track_entry = ttk.Entry(self.forgot_subframe, width=10)
+        self.room_track_entry.pack(side=tk.LEFT, padx=(0, 6))
+        self.room_track_entry.bind("<Return>", lambda event: self.check_status())
         
+        ttk.Label(self.forgot_subframe, text="Name:").pack(side=tk.LEFT, padx=(0, 2))
+        self.name_track_entry = ttk.Entry(self.forgot_subframe, width=16)
+        self.name_track_entry.pack(side=tk.LEFT, padx=(0, 6))
+        self.name_track_entry.bind("<Return>", lambda event: self.check_status())
+
         self.copy_btn = ttk.Button(search_frame, text="📋 Copy ID", command=self.copy_current_id, state=tk.DISABLED)
-        self.copy_btn.pack(side=tk.LEFT)
+        self.copy_btn.pack(side=tk.RIGHT)
+        
+        check_btn = ttk.Button(search_frame, text="🔍 Search", command=self.check_status)
+        check_btn.pack(side=tk.RIGHT, padx=(0, 10))
+        
+        self.toggle_search_mode()
+
+    def toggle_search_mode(self):
+        mode = self.search_mode_var.get()
+        if mode == "Grievance ID":
+            self.forgot_subframe.pack_forget()
+            self.id_subframe.pack(side=tk.LEFT, padx=(0, 10))
+        else:
+            self.id_subframe.pack_forget()
+            self.forgot_subframe.pack(side=tk.LEFT, padx=(0, 10))
         
         # Results List Table Frame with Scrollbar
         self.results_frame = ttk.LabelFrame(self.track_tab, text="Matching Complaints for Room / Resident", padding="8")
@@ -453,17 +567,16 @@ class StudentView:
                 self.update_status_display(grievance)
 
     def check_status(self):
-        raw_search = self.id_entry.get().strip()
         search_mode = self.search_mode_var.get()
-        
-        if not raw_search:
-            messagebox.showerror("Input Error", f"Please enter a {search_mode}.")
-            self.clear_status_display()
-            return
 
         if search_mode == "Grievance ID":
+            raw_search = self.id_entry.get().strip()
+            if not raw_search:
+                messagebox.showerror("Input Error", "Please enter a Grievance Ticket ID.")
+                self.clear_status_display()
+                return
             try:
-                g_id = int(raw_search)
+                g_id = int(raw_search.replace("#", ""))
             except ValueError:
                 messagebox.showerror("Input Error", "Please enter a valid numeric Grievance ID.")
                 self.clear_status_display()
@@ -477,10 +590,21 @@ class StudentView:
                 messagebox.showerror("Not Found", f"No complaint found with ID #{g_id}.")
                 self.clear_status_display()
                 
-        else:  # Room / Name Search
-            grievances = database.get_grievances_by_room_or_name(raw_search)
+        else:  # Forgot ID (Room Number & Student Name)
+            room_val = self.room_track_entry.get().strip()
+            name_val = self.name_track_entry.get().strip()
+            
+            if not room_val or not name_val:
+                messagebox.showerror(
+                    "Input Error", 
+                    "Both Room Number AND Student Name are required to search without a Ticket ID.\nSearching by only name or room number is not allowed for privacy."
+                )
+                self.clear_status_display()
+                return
+                
+            grievances = database.get_grievances_by_room_and_name(room_val, name_val)
             if not grievances:
-                messagebox.showerror("Not Found", f"No complaints found matching '{raw_search}'.")
+                messagebox.showerror("Not Found", f"No complaints found matching Room '{room_val}' and Name '{name_val}'.")
                 self.clear_status_display()
                 return
                 
