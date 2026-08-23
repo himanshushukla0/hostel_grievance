@@ -2,7 +2,18 @@ import sys
 import os
 import sqlite3
 import datetime
+import tempfile
 import py_compile
+
+# Run against an isolated, throwaway SQLite DB — never the real/cloud database.
+os.environ.pop("SUPABASE_URL", None)
+os.environ.pop("SUPABASE_KEY", None)
+os.environ["HOSTEL_DB_FILE"] = os.path.join(tempfile.gettempdir(), "hostel_verify.db")
+for _ext in ("", "-wal", "-shm", "-journal"):
+    try:
+        os.remove(os.environ["HOSTEL_DB_FILE"] + _ext)
+    except OSError:
+        pass
 
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
@@ -11,8 +22,8 @@ print("==================================================")
 print("     COMPREHENSIVE HOSTEL SYSTEM RE-VERIFICATION")
 print("==================================================")
 
-# Step 1: Syntax check all files
-files = ["database.py", "student_view.py", "admin_view.py", "main.py"]
+# Step 1: Syntax check the web app files
+files = ["database.py", "app.py"]
 print("\n[Step 1] Checking Python Syntax & Compilability...")
 for f in files:
     try:
@@ -119,69 +130,36 @@ assert any(n['notice_id'] == n_id_timed for n in notices)
 assert not any(n['notice_id'] == n_id_exp for n in notices)
 print(f"  [OK] Created & Verified Notice #{n_id}: '{notices[0]['title']}' with Expiry Timers & Auto-Purge.")
 
+# Step 3: Leave application & gate pass flow
+print("\n[Step 3] Verifying Leave Application & Gate Pass flow...")
+lv_id = database.create_leave_application(
+    name="Test Student", block="BH-1", room="D-404",
+    phone="+91 9000000000", parent_phone="+91 9111111111",
+    reason="Home Visit", destination="New Delhi",
+    from_date="2026-09-01", to_date="2026-09-03", teacher_name="Prof. Verma"
+)
+lv = database.get_leave_application_by_id(lv_id)
+assert lv['status'] == 'Pending Warden Approval'
+database.update_leave_status(lv_id, "Approved / Gate Pass Issued", warden_remarks="OK", gate_pass_code="GP-2026-TEST01")
+lv2 = database.get_leave_application_by_id(lv_id)
+assert lv2['gate_pass_code'] == "GP-2026-TEST01"
+masked = database.get_leave_applications_by_room_and_name("D-404", "Test Student")
+assert any(r['leave_id'] == lv_id for r in masked)
+print(f"  [OK] Leave application #{lv_id}, gate pass issuance, and room+name lookup verified.")
+
+# Step 4: Search sanitization (PostgREST filter-injection guard)
+print("\n[Step 4] Verifying search input sanitization...")
+assert database._sanitize_search("B-204, or 1=1") == "B-204  or 1=1"
+assert "(" not in database._sanitize_search("a(b)c") and ")" not in database._sanitize_search("a(b)c")
+assert database.get_all_grievances(search_query="x,y(z)") == [] or isinstance(database.get_all_grievances(search_query="x,y(z)"), list)
+print("  [OK] Commas/parentheses stripped from search terms.")
+
 # Clean up test rows
 database.delete_grievance(g_id_1)
 database.delete_grievance(g_id_2)
 database.delete_notice(n_id)
 database.delete_notice(n_id_timed)
-
-# Step 3: GUI Class Structure & Tkinter Headless Validation
-print("\n[Step 3] Verifying Tkinter GUI Classes (Headless Test)...")
-import tkinter as tk
-from main import App, ADMIN_PASSCODE
-from student_view import StudentView
-from admin_view import AdminView
-
-root = tk.Tk()
-root.withdraw() # Keep window hidden during test
-
-# Verify App instance
-app = App(root)
-print("  [OK] App initialized successfully.")
-
-# Verify StudentView instance & methods
-student_frame = tk.Frame(root)
-student_view = StudentView(student_frame)
-assert hasattr(student_view, 'submit_grievance')
-assert hasattr(student_view, 'check_status')
-assert hasattr(student_view, 'setup_notices_tab')
-assert hasattr(student_view, 'setup_leave_tab')
-assert hasattr(student_view, 'submit_leave_application')
-
-# Test student_view form submission programmatically
-student_view.name_entry.insert(0, "Test Student")
-student_view.room_entry.insert(0, "D-404")
-student_view.category_dropdown.set("📦 Miscellaneous / Other Hostel Issue")
-student_view.desc_text.insert("1.0", "Fan making noise.")
-student_view.suggestion_text.insert("1.0", "Inspect fan bearing.")
-
-new_g_id = database.create_grievance("Test Student", "D-404", "📦 Miscellaneous / Other Hostel Issue", "Fan making noise.", block_name="BH-1", suggestion="Inspect fan bearing.")
-student_view.id_entry.insert(0, str(new_g_id))
-student_view.check_status()
-assert "Pending" in student_view.status_var.get()
-assert "Inspect fan bearing." in student_view.suggestion_display_var.get()
-print(f"  [OK] StudentView status & suggestion lookup verified for Grievance #{new_g_id}.")
-
-# Verify AdminView instance & notice methods
-admin_frame = tk.Frame(root)
-admin_view = AdminView(admin_frame)
-assert hasattr(admin_view, 'load_data')
-assert hasattr(admin_view, 'publish_notice')
-assert hasattr(admin_view, 'load_notices')
-assert hasattr(admin_view, 'setup_leave_admin_tab')
-assert hasattr(admin_view, 'load_leave_data')
-assert hasattr(admin_view, 'update_leave_authorization')
-
-admin_view.search_entry.insert(0, "D-404")
-admin_view.load_data()
-children = admin_view.tree.get_children()
-assert len(children) >= 1
-print(f"  [OK] AdminView table filtering, Notice Board, and Student Leave Roster manager verified.")
-
-# Cleanup test row
-database.delete_grievance(new_g_id)
-
-root.destroy()
+database.delete_leave_application(lv_id)
 
 print("\n==================================================")
 print("     ALL VERIFICATION TESTS PASSED SUCCESSFULLY! ")

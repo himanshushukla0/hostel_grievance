@@ -1,5 +1,18 @@
+import os
 import sys
-import database
+import tempfile
+
+# Run against an isolated, throwaway SQLite DB — never the real/cloud database.
+os.environ.pop("SUPABASE_URL", None)
+os.environ.pop("SUPABASE_KEY", None)
+os.environ["HOSTEL_DB_FILE"] = os.path.join(tempfile.gettempdir(), "hostel_test.db")
+for _ext in ("", "-wal", "-shm", "-journal"):
+    try:
+        os.remove(os.environ["HOSTEL_DB_FILE"] + _ext)
+    except OSError:
+        pass
+
+import database  # noqa: E402  (imported after env is set so it picks up the test DB)
 
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')

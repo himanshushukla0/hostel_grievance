@@ -4,6 +4,12 @@ __pycache__/
 *$py.class
 *.so
 
+# Streamlit Secrets (never commit)
+.streamlit/secrets.toml
+
+# Uploads
+uploads/
+
 # SQLite Database & Temp Journal/WAL Files
 *.db
 *.sqlite3

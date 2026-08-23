@@ -3,11 +3,48 @@ import streamlit as st
 import pandas as pd
 import datetime
 import os
+import re
+import secrets
 import database
-import importlib
+from database import DatabaseError
 
-# Ensure fresh module reload on Streamlit execution
-importlib.reload(database)
+
+# ---- Small helpers ----
+def canonical_priority(p):
+    """Normalize a display priority string to a clean stored value."""
+    if "Emergency" in p:
+        return "Emergency"
+    if "Urgent" in p:
+        return "Urgent"
+    return "Normal"
+
+
+def canonical_category(c):
+    """Strip leading emoji from a category label for a cleaner stored value."""
+    return re.sub(r"^[^\w(]+", "", c).strip()
+
+
+def mask_phone(num):
+    """Mask a phone number for display, keeping only the last 2 digits."""
+    if not num:
+        return "—"
+    digits = re.sub(r"\D", "", str(num))
+    if len(digits) <= 2:
+        return "•" * len(digits)
+    return "•" * (len(digits) - 2) + digits[-2:]
+
+
+def paginate(items, key, page_size=25):
+    """Return the current page slice of items plus render a compact pager."""
+    total = len(items)
+    if total <= page_size:
+        return items
+    pages = (total + page_size - 1) // page_size
+    page = st.number_input(
+        f"Page (1–{pages}, {total} records)", min_value=1, max_value=pages, value=1, step=1, key=key
+    )
+    start = (int(page) - 1) * page_size
+    return items[start:start + page_size]
 
 # Page Configuration
 st.set_page_config(
@@ -455,30 +492,30 @@ if portal_mode == "🎓 Student Resident Portal":
                     st.error("⚠️ Form incomplete! Please fill in all required fields (* Name, Room Number, and Description) before submitting.")
                 elif "Emergency" in priority and len(description.strip()) < 20:
                     st.error("⚠️ Emergency priority requires a fuller description (at least 20 characters) so the on-duty staff know what they're responding to.")
+                elif photo_file is not None and photo_file.size > 5 * 1024 * 1024:
+                    st.error("⚠️ Photo is too large. Please upload an image under 5 MB.")
                 else:
                     clean_block = block_full.split(" (")[0] if " (" in block_full else block_full
 
-                    photo_path = ""
-                    if photo_file is not None:
-                        os.makedirs("uploads", exist_ok=True)
-                        ext = photo_file.name.split(".")[-1]
-                        safe_room = "".join(c for c in room_number.strip() if c.isalnum() or c in ("-", "_"))
-                        photo_path = f"uploads/{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_room}.{ext}"
-                        with open(photo_path, "wb") as f:
-                            f.write(photo_file.getbuffer())
+                    try:
+                        photo_path = ""
+                        if photo_file is not None:
+                            photo_path = database.upload_photo(photo_file.getbuffer(), photo_file.name)
 
-                    gid = database.create_grievance(
-                        name=student_name.strip(),
-                        room=room_number.strip(),
-                        category=category,
-                        description=description.strip(),
-                        block_name=clean_block,
-                        priority=priority,
-                        suggestion=suggestion.strip(),
-                        photo_path=photo_path
-                    )
-                    st.balloons()
-                    st.success(f"🎉 **Request Submitted Successfully!**\n\nYour Grievance ID is **#{gid}**. You can track its status under the **Track Status** tab.")
+                        gid = database.create_grievance(
+                            name=student_name.strip(),
+                            room=room_number.strip(),
+                            category=canonical_category(category),
+                            description=description.strip(),
+                            block_name=clean_block,
+                            priority=canonical_priority(priority),
+                            suggestion=suggestion.strip(),
+                            photo_path=photo_path
+                        )
+                        st.balloons()
+                        st.success(f"🎉 **Request Submitted Successfully!**\n\nYour Grievance ID is **#{gid}**. You can track its status under the **Track Status** tab.")
+                    except DatabaseError as e:
+                        st.error(f"❌ {e} (Your complaint was NOT saved — please retry.)")
 
     # TAB 2: TRACK STATUS
     with tab_track:
@@ -604,20 +641,23 @@ if portal_mode == "🎓 Student Resident Portal":
                         from_str = from_d.strftime("%Y-%m-%d")
                         to_str = to_d.strftime("%Y-%m-%d")
 
-                        lid = database.create_leave_application(
-                            name=l_student_name.strip(),
-                            block=clean_block,
-                            room=l_room.strip(),
-                            phone=l_phone.strip(),
-                            parent_phone=l_parent_phone.strip(),
-                            reason=l_reason,
-                            destination=l_destination.strip(),
-                            from_date=from_str,
-                            to_date=to_str,
-                            teacher_name=l_teacher.strip()
-                        )
-                        st.balloons()
-                        st.success(f"🎉 **Leave Application Submitted!**\n\nYour Leave Ticket ID is **#L-{lid}**. You can track status & fetch your Gate Pass under the **Track Leave Application** tab.")
+                        try:
+                            lid = database.create_leave_application(
+                                name=l_student_name.strip(),
+                                block=clean_block,
+                                room=l_room.strip(),
+                                phone=l_phone.strip(),
+                                parent_phone=l_parent_phone.strip(),
+                                reason=l_reason,
+                                destination=l_destination.strip(),
+                                from_date=from_str,
+                                to_date=to_str,
+                                teacher_name=l_teacher.strip()
+                            )
+                            st.balloons()
+                            st.success(f"🎉 **Leave Application Submitted!**\n\nYour Leave Ticket ID is **#L-{lid}**. Keep this ID safe — you'll need it to retrieve your Gate Pass under the **Track Leave Application** tab.")
+                        except DatabaseError as e:
+                            st.error(f"❌ {e} (Your application was NOT saved — please retry.)")
 
         with leave_sub_tab2:
             st.subheader("Search & Track Leave Pass Status")
@@ -625,8 +665,11 @@ if portal_mode == "🎓 Student Resident Portal":
 
             leave_results = None
             l_searched = False
+            # "Forgot Ticket ID?" ALSO contains "Ticket ID", so match on the absence
+            # of "Forgot" to correctly route the two search modes.
+            l_by_id = "Forgot" not in leave_search_mode
 
-            if "Ticket ID" in leave_search_mode:
+            if l_by_id:
                 l_col1, l_col2 = st.columns([3, 1])
                 with l_col1:
                     l_search_id = st.text_input("Enter Leave Ticket ID", placeholder="e.g. 1 or L-1", key="l_search_id")
@@ -677,10 +720,16 @@ if portal_mode == "🎓 Student Resident Portal":
                             **Reason:** {l_item['leave_reason']}
                             """, unsafe_allow_html=True)
 
-                            if l_item.get('gate_pass_code'):
-                                st.success(f"🎫 **APPROVED GATE PASS CODE:** `{l_item['gate_pass_code']}`\n\nShow this code to the Hostel Security Gate Officer upon departure.")
-
-                            st.markdown(f"**Student Contact:** {l_item['phone_number']} | **Parent Emergency Contact:** {l_item['parent_phone']}")
+                            if l_by_id:
+                                # Full detail only when the exact Leave Ticket ID was supplied.
+                                if l_item.get('gate_pass_code'):
+                                    st.success(f"🎫 **APPROVED GATE PASS CODE:** `{l_item['gate_pass_code']}`\n\nShow this code to the Hostel Security Gate Officer upon departure.")
+                                st.markdown(f"**Student Contact:** {l_item['phone_number']} | **Parent Emergency Contact:** {l_item['parent_phone']}")
+                            else:
+                                # Room + name is guessable, so withhold the gate pass and mask contacts.
+                                if l_item.get('gate_pass_code'):
+                                    st.info("🎫 A Gate Pass has been issued. For your security, retrieve the code using the **Leave Ticket ID** search above.")
+                                st.markdown(f"**Student Contact:** {mask_phone(l_item['phone_number'])} | **Parent Emergency Contact:** {mask_phone(l_item['parent_phone'])}")
                             st.caption(f"Warden Notes: {l_item.get('warden_remarks') or 'Awaiting warden authorization'} | Submitted: {l_item['date_submitted']}")
                 else:
                     st.warning("No matching leave application records found.")
@@ -789,7 +838,8 @@ else:
                 st.markdown("---")
                 st.subheader("🛠️ Warden Action & Dispatch Details")
 
-                g_options = [f"Ticket #{g['grievance_id']} - {g['student_name']} ({g['block_name']} Room {g['room_number']})" for g in grievances]
+                page_grievances = paginate(grievances, key="grievance_pager")
+                g_options = [f"Ticket #{g['grievance_id']} - {g['student_name']} ({g['block_name']} Room {g['room_number']})" for g in page_grievances]
                 selected_g_label = st.selectbox("Select Grievance Ticket to Manage", g_options)
 
                 if selected_g_label:
@@ -826,6 +876,7 @@ else:
                                 new_staff = st.text_input("Assign Maintenance Staff", value=selected_item.get('assigned_staff', ''))
 
                             new_remarks = st.text_area("Warden Remarks / Resolution Notes", value=selected_item.get('admin_remarks', ''))
+                            confirm_delete = st.checkbox("⚠️ Confirm I want to permanently delete this ticket", key=f"confirm_del_g_{selected_id}")
 
                             b_col1, b_col2 = st.columns([3, 1])
                             with b_col1:
@@ -834,14 +885,23 @@ else:
                                 delete_btn = st.form_submit_button("🗑️ Delete Ticket", use_container_width=True)
 
                             if save_btn:
-                                database.update_grievance(selected_id, new_status, new_remarks, assigned_staff=new_staff.strip())
-                                st.success(f"Grievance #{selected_id} updated successfully!")
-                                st.rerun()
+                                try:
+                                    database.update_grievance(selected_id, new_status, new_remarks, assigned_staff=new_staff.strip())
+                                    st.success(f"Grievance #{selected_id} updated successfully!")
+                                    st.rerun()
+                                except DatabaseError as e:
+                                    st.error(f"❌ {e}")
 
                             if delete_btn:
-                                database.delete_grievance(selected_id)
-                                st.warning(f"Grievance #{selected_id} deleted!")
-                                st.rerun()
+                                if not confirm_delete:
+                                    st.warning("Tick the confirmation box before deleting a ticket.")
+                                else:
+                                    try:
+                                        database.delete_grievance(selected_id)
+                                        st.warning(f"Grievance #{selected_id} deleted!")
+                                        st.rerun()
+                                    except DatabaseError as e:
+                                        st.error(f"❌ {e}")
 
                 # Export CSV
                 csv_data = df.to_csv(index=False).encode('utf-8')
@@ -898,7 +958,8 @@ else:
                 st.markdown("---")
                 st.subheader("🛠️ Warden Gate Pass Action Panel")
 
-                l_options = [f"Leave #L-{rec['leave_id']} - {rec['student_name']} ({rec['block_name']} Room {rec['room_number']})" for rec in all_leaves]
+                page_leaves = paginate(all_leaves, key="leave_pager")
+                l_options = [f"Leave #L-{rec['leave_id']} - {rec['student_name']} ({rec['block_name']} Room {rec['room_number']})" for rec in page_leaves]
                 selected_leave_label = st.selectbox("Select Leave Application to Action", l_options, key="sel_leave_label")
 
                 if selected_leave_label:
@@ -922,10 +983,12 @@ else:
                             with la_col1:
                                 new_l_status = st.selectbox("Action / Approval", ["Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"], index=["Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"].index(sel_leave['status']) if sel_leave['status'] in ["Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"] else 0)
                             with la_col2:
-                                default_gp = sel_leave.get('gate_pass_code') or f"GP-2026-X{sel_lid:03d}"
+                                # Unguessable default so students can't derive another student's pass from the ID.
+                                default_gp = sel_leave.get('gate_pass_code') or f"GP-2026-{secrets.token_hex(3).upper()}"
                                 new_gp_code = st.text_input("Gate Pass Code", value=default_gp)
 
                             new_w_remarks = st.text_area("Warden Remarks / Authorization Notes", value=sel_leave.get('warden_remarks', ''))
+                            confirm_del_leave = st.checkbox("⚠️ Confirm I want to permanently delete this leave record", key=f"confirm_del_l_{sel_lid}")
 
                             lb_col1, lb_col2 = st.columns([3, 1])
                             with lb_col1:
@@ -934,14 +997,23 @@ else:
                                 delete_l_btn = st.form_submit_button("🗑️ Delete Leave Record", use_container_width=True)
 
                             if save_l_btn:
-                                database.update_leave_status(sel_lid, new_l_status, warden_remarks=new_w_remarks.strip(), gate_pass_code=new_gp_code.strip() if "Approved" in new_l_status else "")
-                                st.success(f"Leave Application #L-{sel_lid} updated successfully!")
-                                st.rerun()
+                                try:
+                                    database.update_leave_status(sel_lid, new_l_status, warden_remarks=new_w_remarks.strip(), gate_pass_code=new_gp_code.strip() if "Approved" in new_l_status else "")
+                                    st.success(f"Leave Application #L-{sel_lid} updated successfully!")
+                                    st.rerun()
+                                except DatabaseError as e:
+                                    st.error(f"❌ {e}")
 
                             if delete_l_btn:
-                                database.delete_leave_application(sel_lid)
-                                st.warning(f"Leave Record #L-{sel_lid} deleted!")
-                                st.rerun()
+                                if not confirm_del_leave:
+                                    st.warning("Tick the confirmation box before deleting a leave record.")
+                                else:
+                                    try:
+                                        database.delete_leave_application(sel_lid)
+                                        st.warning(f"Leave Record #L-{sel_lid} deleted!")
+                                        st.rerun()
+                                    except DatabaseError as e:
+                                        st.error(f"❌ {e}")
 
                 # Export CSV
                 l_csv_data = l_df.to_csv(index=False).encode('utf-8')
@@ -997,9 +1069,12 @@ else:
                             "⏱️ 7 Days (1 Week)": 168
                         }
                         exp_h = duration_map.get(n_duration, 0)
-                        database.create_notice(n_title.strip(), n_content.strip(), n_cat, n_block, n_posted_by, expiry_hours=exp_h)
-                        st.success("Notice published successfully!")
-                        st.rerun()
+                        try:
+                            database.create_notice(n_title.strip(), n_content.strip(), n_cat, n_block, n_posted_by, expiry_hours=exp_h)
+                            st.success("Notice published successfully!")
+                            st.rerun()
+                        except DatabaseError as e:
+                            st.error(f"❌ {e}")
 
             st.markdown("---")
             st.subheader("Manage Published Announcements")
@@ -1010,9 +1085,16 @@ else:
                     with st.expander(f"📢 [{noti['target_block']}] {noti['title']} ({noti['date_posted']}{exp_badge})"):
                         st.write(noti['content'])
                         st.caption(f"Posted by: {noti.get('posted_by', 'Warden Office')}{exp_badge}")
+                        confirm_del_n = st.checkbox("⚠️ Confirm delete", key=f"confirm_del_n_{noti['notice_id']}")
                         if st.button("🗑️ Delete Notice", key=f"del_notice_{noti['notice_id']}"):
-                            database.delete_notice(noti['notice_id'])
-                            st.warning("Notice deleted!")
-                            st.rerun()
+                            if not confirm_del_n:
+                                st.warning("Tick 'Confirm delete' before removing a notice.")
+                            else:
+                                try:
+                                    database.delete_notice(noti['notice_id'])
+                                    st.warning("Notice deleted!")
+                                    st.rerun()
+                                except DatabaseError as e:
+                                    st.error(f"❌ {e}")
             else:
                 st.info("No active published notices currently on the board.")

@@ -1,38 +1,96 @@
 import os
+import re
+import mimetypes
 import sqlite3
+import logging
 import datetime
 from contextlib import contextmanager
 
 # ==========================================
-# ☁️ SUPABASE CLOUD CONFIGURATION
+# 🪵 LOGGING
 # ==========================================
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://wtfartnzuwdixoniufdz.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_7CLKY_ttSdt-aKKYKytvIg_11jrm6qM")
+logger = logging.getLogger("hostel_grievance.db")
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+
+class DatabaseError(Exception):
+    """Raised when a write to the configured backend fails, so callers can
+    surface a real error instead of silently reporting success."""
+
+
+# ==========================================
+# 🔐 CONFIGURATION (env / Streamlit secrets ONLY — never hardcode credentials)
+# ==========================================
+def _get_secret(key, default=""):
+    """Read a config value from environment first, then Streamlit secrets if available."""
+    val = os.environ.get(key)
+    if val:
+        return val
+    try:
+        import streamlit as st  # optional — only present in the web app
+        if hasattr(st, "secrets") and key in st.secrets:
+            return str(st.secrets[key])
+    except Exception:
+        pass
+    return default
+
+
+SUPABASE_URL = _get_secret("SUPABASE_URL")
+SUPABASE_KEY = _get_secret("SUPABASE_KEY")
+STORAGE_BUCKET = _get_secret("SUPABASE_STORAGE_BUCKET", "grievance-photos")
 
 supabase = None
 USE_SUPABASE = False
 
-try:
-    from supabase import create_client, Client
-    if SUPABASE_URL and SUPABASE_KEY:
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        from supabase import create_client, Client  # noqa: F401
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         USE_SUPABASE = True
-except Exception:
-    supabase = None
-    USE_SUPABASE = False
+        logger.info("Supabase configured — using cloud database as the single source of truth.")
+    except Exception as e:
+        supabase = None
+        USE_SUPABASE = False
+        logger.warning("Supabase client init failed (%s) — falling back to local SQLite.", e)
+else:
+    logger.info("No Supabase credentials found — using local SQLite database.")
 
-DB_FILE = 'hostel_care.db'
+
+def _sb_ok():
+    return USE_SUPABASE and supabase is not None
+
+
+DB_FILE = os.environ.get("HOSTEL_DB_FILE", "hostel_care.db")
+
 
 # ==========================================
-# 🗄️ LOCAL SQLITE (fallback only — used automatically
-# if Supabase is unreachable or a table is missing)
+# 🧼 SEARCH SANITIZATION
 # ==========================================
+def _sanitize_search(term):
+    """Strip characters that have special meaning in the PostgREST filter DSL
+    (commas separate conditions, parentheses group them) to prevent filter
+    injection / broken queries. Also caps length."""
+    if not term:
+        return ""
+    cleaned = re.sub(r"[,()\r\n]", " ", str(term))
+    return cleaned.strip()[:100]
 
+
+def escape_like(string):
+    """Escape special characters for SQL LIKE pattern matching (SQLite path)."""
+    return string.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+# ==========================================
+# 🗄️ LOCAL SQLITE (used only when Supabase is not configured)
+# ==========================================
 def get_connection():
     """Establish and return a connection to the SQLite database with busy timeout."""
     conn = sqlite3.connect(DB_FILE, timeout=15.0)
-    conn.row_factory = sqlite3.Row  # Access columns by name
+    conn.row_factory = sqlite3.Row
     return conn
+
 
 @contextmanager
 def get_db():
@@ -43,8 +101,12 @@ def get_db():
     finally:
         conn.close()
 
+
 def init_db():
-    """Initialize local SQLite fallback DB and perform safe schema migrations."""
+    """Initialize the local SQLite schema. No-op when Supabase is the backend."""
+    if _sb_ok():
+        return
+
     with get_db() as conn:
         cursor = conn.cursor()
         try:
@@ -73,19 +135,16 @@ def init_db():
 
         cursor.execute("PRAGMA table_info(Grievances)")
         columns = [row['name'] for row in cursor.fetchall()]
-
-        if 'last_updated' not in columns:
-            cursor.execute("ALTER TABLE Grievances ADD COLUMN last_updated TEXT DEFAULT ''")
-        if 'block_name' not in columns:
-            cursor.execute("ALTER TABLE Grievances ADD COLUMN block_name TEXT DEFAULT 'BH-1'")
-        if 'priority' not in columns:
-            cursor.execute("ALTER TABLE Grievances ADD COLUMN priority TEXT DEFAULT 'Normal'")
-        if 'assigned_staff' not in columns:
-            cursor.execute("ALTER TABLE Grievances ADD COLUMN assigned_staff TEXT DEFAULT ''")
-        if 'suggestion' not in columns:
-            cursor.execute("ALTER TABLE Grievances ADD COLUMN suggestion TEXT DEFAULT ''")
-        if 'photo_path' not in columns:
-            cursor.execute("ALTER TABLE Grievances ADD COLUMN photo_path TEXT DEFAULT ''")
+        for col, ddl in [
+            ('last_updated', "ALTER TABLE Grievances ADD COLUMN last_updated TEXT DEFAULT ''"),
+            ('block_name', "ALTER TABLE Grievances ADD COLUMN block_name TEXT DEFAULT 'BH-1'"),
+            ('priority', "ALTER TABLE Grievances ADD COLUMN priority TEXT DEFAULT 'Normal'"),
+            ('assigned_staff', "ALTER TABLE Grievances ADD COLUMN assigned_staff TEXT DEFAULT ''"),
+            ('suggestion', "ALTER TABLE Grievances ADD COLUMN suggestion TEXT DEFAULT ''"),
+            ('photo_path', "ALTER TABLE Grievances ADD COLUMN photo_path TEXT DEFAULT ''"),
+        ]:
+            if col not in columns:
+                cursor.execute(ddl)
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS Notices (
@@ -129,42 +188,63 @@ def init_db():
         conn.commit()
 
 
-def escape_like(string):
-    """Escape special characters for SQL LIKE pattern matching (SQLite fallback path)."""
-    return string.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
-
-
 # ==========================================
-# 🔧 SUPABASE HELPERS
+# 🖼️ PHOTO STORAGE (Supabase Storage when available, local disk in dev)
 # ==========================================
+def upload_photo(file_bytes, original_filename):
+    """Upload a grievance photo and return a persistent reference.
 
-def _sb_ok():
-    return USE_SUPABASE and supabase is not None
+    - With Supabase: uploads to the storage bucket and returns a public URL.
+    - Without Supabase (local dev): writes to ./uploads and returns the path.
+    Returns "" if nothing could be stored.
+    """
+    if not file_bytes:
+        return ""
+
+    ext = ""
+    if "." in original_filename:
+        ext = original_filename.rsplit(".", 1)[-1].lower()
+    if ext not in ("png", "jpg", "jpeg", "webp"):
+        ext = "jpg"
+
+    stamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S%f")
+    object_name = f"{stamp}.{ext}"
+    content_type = mimetypes.types_map.get(f".{ext}", "image/jpeg")
+
+    if _sb_ok():
+        try:
+            supabase.storage.from_(STORAGE_BUCKET).upload(
+                object_name,
+                file_bytes,
+                {"content-type": content_type, "upsert": "false"},
+            )
+            return supabase.storage.from_(STORAGE_BUCKET).get_public_url(object_name)
+        except Exception as e:
+            logger.error("Supabase Storage upload failed: %s", e)
+            raise DatabaseError("Photo upload to cloud storage failed.") from e
+
+    # Local dev fallback
+    try:
+        os.makedirs("uploads", exist_ok=True)
+        path = os.path.join("uploads", object_name)
+        with open(path, "wb") as f:
+            f.write(file_bytes)
+        return path
+    except Exception as e:
+        logger.error("Local photo save failed: %s", e)
+        return ""
 
 
 # ==========================================
 # 📋 GRIEVANCES
 # ==========================================
-
 def create_grievance(name, room, category, description, block_name="BH-1", priority="Normal", suggestion="", photo_path=""):
-    """Insert a new grievance. Writes to local SQLite and syncs to Supabase Cloud if available."""
+    """Insert a new grievance into the configured backend and return its ID."""
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Local SQLite generates the ID
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO Grievances (student_name, room_number, category, description, date_submitted, last_updated, block_name, priority, assigned_staff, suggestion, photo_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?)
-        ''', (name, room, category, description, now, now, block_name, priority, suggestion, photo_path or ""))
-        grievance_id = cursor.lastrowid
-        conn.commit()
-
-    # Sync to Supabase Cloud with matching ID
     if _sb_ok():
         try:
             payload = {
-                "grievance_id": grievance_id,
                 "student_name": name,
                 "room_number": room,
                 "category": category,
@@ -175,19 +255,28 @@ def create_grievance(name, room, category, description, block_name="BH-1", prior
                 "block_name": block_name,
                 "priority": priority,
                 "assigned_staff": "",
-                "suggestion": suggestion
+                "suggestion": suggestion,
+                "photo_path": photo_path or "",
             }
-            if photo_path:
-                payload["photo_path"] = photo_path
-            supabase.table("Grievances").insert(payload).execute()
-        except Exception:
-            pass
+            resp = supabase.table("Grievances").insert(payload).execute()
+            return resp.data[0]["grievance_id"] if resp.data else None
+        except Exception as e:
+            logger.error("create_grievance (Supabase) failed: %s", e)
+            raise DatabaseError("Could not save your complaint. Please try again.") from e
 
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO Grievances (student_name, room_number, category, description, date_submitted, last_updated, block_name, priority, assigned_staff, suggestion, photo_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?)
+        ''', (name, room, category, description, now, now, block_name, priority, suggestion, photo_path or ""))
+        grievance_id = cursor.lastrowid
+        conn.commit()
     return grievance_id
 
 
 def get_all_grievances(status_filter=None, block_filter=None, search_query=None):
-    """Fetch all grievances, reading from Supabase when available, else local SQLite."""
+    """Fetch all grievances from the configured backend."""
     if _sb_ok():
         try:
             q = supabase.table("Grievances").select("*")
@@ -195,8 +284,8 @@ def get_all_grievances(status_filter=None, block_filter=None, search_query=None)
                 q = q.eq("status", status_filter)
             if block_filter and block_filter not in ("All", "All Blocks"):
                 q = q.ilike("block_name", f"{block_filter}%")
-            if search_query and search_query.strip():
-                s = search_query.strip()
+            s = _sanitize_search(search_query)
+            if s:
                 q = q.or_(
                     f"student_name.ilike.%{s}%,"
                     f"room_number.ilike.%{s}%,"
@@ -206,11 +295,11 @@ def get_all_grievances(status_filter=None, block_filter=None, search_query=None)
                     f"description.ilike.%{s}%,"
                     f"suggestion.ilike.%{s}%"
                 )
-            q = q.order("date_submitted", desc=True)
-            resp = q.execute()
+            resp = q.order("date_submitted", desc=True).execute()
             return resp.data or []
-        except Exception:
-            pass  # fall through to SQLite
+        except Exception as e:
+            logger.error("get_all_grievances (Supabase) failed: %s", e)
+            return []
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -241,10 +330,8 @@ def get_all_grievances(status_filter=None, block_filter=None, search_query=None)
             params.extend([pattern] * 8)
 
         query += " ORDER BY date_submitted DESC"
-
         cursor.execute(query, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        return [dict(row) for row in cursor.fetchall()]
 
 
 def get_grievance_by_id(grievance_id):
@@ -252,10 +339,10 @@ def get_grievance_by_id(grievance_id):
     if _sb_ok():
         try:
             resp = supabase.table("Grievances").select("*").eq("grievance_id", grievance_id).execute()
-            if resp.data and len(resp.data) > 0:
-                return resp.data[0]
-        except Exception:
-            pass
+            return resp.data[0] if resp.data else None
+        except Exception as e:
+            logger.error("get_grievance_by_id (Supabase) failed: %s", e)
+            return None
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -274,10 +361,12 @@ def update_grievance(grievance_id, status, remarks, assigned_staff=""):
                 "status": status,
                 "admin_remarks": remarks,
                 "last_updated": now,
-                "assigned_staff": assigned_staff
+                "assigned_staff": assigned_staff,
             }).eq("grievance_id", grievance_id).execute()
-        except Exception:
-            pass
+            return
+        except Exception as e:
+            logger.error("update_grievance (Supabase) failed: %s", e)
+            raise DatabaseError("Could not update the grievance.") from e
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -294,8 +383,10 @@ def delete_grievance(grievance_id):
     if _sb_ok():
         try:
             supabase.table("Grievances").delete().eq("grievance_id", grievance_id).execute()
-        except Exception:
-            pass
+            return
+        except Exception as e:
+            logger.error("delete_grievance (Supabase) failed: %s", e)
+            raise DatabaseError("Could not delete the grievance.") from e
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -310,8 +401,7 @@ def get_grievance_counts():
     if _sb_ok():
         try:
             resp = supabase.table("Grievances").select("status, priority").execute()
-            rows = resp.data or []
-            for row in rows:
+            for row in (resp.data or []):
                 st = (row.get('status') or '').lower().replace(" ", "_")
                 if st in counts:
                     counts[st] += 1
@@ -319,15 +409,14 @@ def get_grievance_counts():
                 if row.get('priority') and 'Emergency' in row['priority'] and row.get('status') != 'Resolved':
                     counts['emergency'] += 1
             return counts
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("get_grievance_counts (Supabase) failed: %s", e)
+            return counts
 
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT status, COUNT(*) as count FROM Grievances GROUP BY status")
-        rows = cursor.fetchall()
-
-        for row in rows:
+        for row in cursor.fetchall():
             if row['status']:
                 st = row['status'].lower().replace(" ", "_")
                 cnt = row['count']
@@ -339,21 +428,21 @@ def get_grievance_counts():
         em_row = cursor.fetchone()
         if em_row:
             counts['emergency'] = em_row['count']
-
         return counts
 
 
 def get_grievances_by_room_or_name(search_term):
-    """Fetch grievances by room number, student name, or block (for student lookup)."""
+    """Fetch grievances by room number, student name, or block (kept for compatibility)."""
     if _sb_ok():
         try:
-            s = search_term
+            s = _sanitize_search(search_term)
             resp = supabase.table("Grievances").select("*").or_(
                 f"room_number.ilike.%{s}%,student_name.ilike.%{s}%,block_name.ilike.%{s}%"
             ).order("date_submitted", desc=True).execute()
             return resp.data or []
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("get_grievances_by_room_or_name (Supabase) failed: %s", e)
+            return []
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -364,21 +453,23 @@ def get_grievances_by_room_or_name(search_term):
         """
         pattern = f"%{escape_like(search_term)}%"
         cursor.execute(query, (pattern, pattern, pattern, pattern))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        return [dict(row) for row in cursor.fetchall()]
 
 
 def get_grievances_by_room_and_name(room_number, student_name, block_name=None):
     """Fetch grievances matching BOTH room number AND student name (secure forgot-ID lookup)."""
     if _sb_ok():
         try:
-            q = supabase.table("Grievances").select("*").ilike("room_number", room_number.strip()).ilike("student_name", f"%{student_name.strip()}%")
+            room = _sanitize_search(room_number)
+            name = _sanitize_search(student_name)
+            q = supabase.table("Grievances").select("*").ilike("room_number", room.strip()).ilike("student_name", f"%{name.strip()}%")
             if block_name and block_name != "All Blocks":
                 q = q.eq("block_name", block_name)
             resp = q.order("date_submitted", desc=True).execute()
             return resp.data or []
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("get_grievances_by_room_and_name (Supabase) failed: %s", e)
+            return []
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -393,16 +484,14 @@ def get_grievances_by_room_and_name(room_number, student_name, block_name=None):
             params.append(block_name)
         query += " ORDER BY date_submitted DESC"
         cursor.execute(query, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        return [dict(row) for row in cursor.fetchall()]
 
 
 # ==========================================
 # 📢 NOTICES
 # ==========================================
-
 def cleanup_expired_notices():
-    """Auto-delete notices whose active timer / expiry timestamp has passed."""
+    """Auto-delete notices whose expiry timestamp has passed."""
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     if _sb_ok():
@@ -412,20 +501,21 @@ def cleanup_expired_notices():
                 exp = n.get("expires_at")
                 if exp and exp != "" and exp <= now:
                     supabase.table("Notices").delete().eq("notice_id", n["notice_id"]).execute()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("cleanup_expired_notices (Supabase) failed: %s", e)
+        return
 
     try:
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM Notices WHERE expires_at != '' AND expires_at <= ?", (now,))
             conn.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("cleanup_expired_notices (SQLite) failed: %s", e)
 
 
 def create_notice(title, content, category, target_block="All Blocks", posted_by="Hostel Warden Office", expiry_hours=0):
-    """Insert a new notice/announcement into local SQLite and sync to Supabase Cloud."""
+    """Insert a new notice/announcement and return its ID."""
     now_dt = datetime.datetime.now()
     now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -433,6 +523,22 @@ def create_notice(title, content, category, target_block="All Blocks", posted_by
     if expiry_hours and float(expiry_hours) != 0:
         exp_dt = now_dt + datetime.timedelta(hours=float(expiry_hours))
         expires_at = exp_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    if _sb_ok():
+        try:
+            resp = supabase.table("Notices").insert({
+                "title": title,
+                "content": content,
+                "category": category,
+                "target_block": target_block,
+                "date_posted": now_str,
+                "posted_by": posted_by,
+                "expires_at": expires_at,
+            }).execute()
+            return resp.data[0]["notice_id"] if resp.data else None
+        except Exception as e:
+            logger.error("create_notice (Supabase) failed: %s", e)
+            raise DatabaseError("Could not publish the notice.") from e
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -442,22 +548,6 @@ def create_notice(title, content, category, target_block="All Blocks", posted_by
         ''', (title, content, category, target_block, now_str, posted_by, expires_at))
         notice_id = cursor.lastrowid
         conn.commit()
-
-    if _sb_ok():
-        try:
-            supabase.table("Notices").insert({
-                "notice_id": notice_id,
-                "title": title,
-                "content": content,
-                "category": category,
-                "target_block": target_block,
-                "date_posted": now_str,
-                "posted_by": posted_by,
-                "expires_at": expires_at
-            }).execute()
-        except Exception:
-            pass
-
     return notice_id
 
 
@@ -467,34 +557,30 @@ def get_all_notices(block_filter=None, category_filter=None):
 
     if _sb_ok():
         try:
-            q = supabase.table("Notices").select("*")
-            resp = q.order("date_posted", desc=True).execute()
+            resp = supabase.table("Notices").select("*").order("date_posted", desc=True).execute()
             notices = resp.data or []
             if block_filter and block_filter != "All Blocks":
                 notices = [n for n in notices if n.get("target_block") == block_filter or n.get("target_block") == "All Blocks"]
             if category_filter and category_filter != "All":
                 notices = [n for n in notices if n.get("category") == category_filter]
             return notices
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("get_all_notices (Supabase) failed: %s", e)
+            return []
 
     with get_db() as conn:
         cursor = conn.cursor()
         query = "SELECT * FROM Notices WHERE 1=1"
         params = []
-
         if block_filter and block_filter != "All Blocks":
             query += " AND (target_block = ? OR target_block = 'All Blocks')"
             params.append(block_filter)
-
         if category_filter and category_filter != "All":
             query += " AND category = ?"
             params.append(category_filter)
-
         query += " ORDER BY date_posted DESC"
         cursor.execute(query, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        return [dict(row) for row in cursor.fetchall()]
 
 
 def delete_notice(notice_id):
@@ -502,8 +588,10 @@ def delete_notice(notice_id):
     if _sb_ok():
         try:
             supabase.table("Notices").delete().eq("notice_id", notice_id).execute()
-        except Exception:
-            pass
+            return
+        except Exception as e:
+            logger.error("delete_notice (Supabase) failed: %s", e)
+            raise DatabaseError("Could not delete the notice.") from e
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -514,27 +602,13 @@ def delete_notice(notice_id):
 # ==========================================
 # 🌴 STUDENT LEAVE & GATE PASS OPERATIONS
 # ==========================================
-
 def create_leave_application(name, block, room, phone, parent_phone, reason, destination, from_date, to_date, teacher_name):
-    """Insert a new leave application into local SQLite and sync to Supabase Cloud."""
+    """Insert a new leave application and return its ID."""
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO LeaveApplications (
-                student_name, block_name, room_number, phone_number, parent_phone,
-                leave_reason, destination, from_date, to_date, granting_teacher,
-                status, warden_remarks, gate_pass_code, date_submitted, last_updated
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending Warden Approval', '', '', ?, ?)
-        ''', (name, block, room, phone, parent_phone, reason, destination, from_date, to_date, teacher_name, now, now))
-        leave_id = cursor.lastrowid
-        conn.commit()
 
     if _sb_ok():
         try:
-            supabase.table("LeaveApplications").insert({
-                "leave_id": leave_id,
+            resp = supabase.table("LeaveApplications").insert({
                 "student_name": name,
                 "block_name": block,
                 "room_number": room,
@@ -549,11 +623,24 @@ def create_leave_application(name, block, room, phone, parent_phone, reason, des
                 "warden_remarks": "",
                 "gate_pass_code": "",
                 "date_submitted": now,
-                "last_updated": now
+                "last_updated": now,
             }).execute()
-        except Exception:
-            pass
+            return resp.data[0]["leave_id"] if resp.data else None
+        except Exception as e:
+            logger.error("create_leave_application (Supabase) failed: %s", e)
+            raise DatabaseError("Could not submit your leave application.") from e
 
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO LeaveApplications (
+                student_name, block_name, room_number, phone_number, parent_phone,
+                leave_reason, destination, from_date, to_date, granting_teacher,
+                status, warden_remarks, gate_pass_code, date_submitted, last_updated
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending Warden Approval', '', '', ?, ?)
+        ''', (name, block, room, phone, parent_phone, reason, destination, from_date, to_date, teacher_name, now, now))
+        leave_id = cursor.lastrowid
+        conn.commit()
     return leave_id
 
 
@@ -562,10 +649,10 @@ def get_leave_application_by_id(leave_id):
     if _sb_ok():
         try:
             resp = supabase.table("LeaveApplications").select("*").eq("leave_id", leave_id).execute()
-            if resp.data and len(resp.data) > 0:
-                return resp.data[0]
-        except Exception:
-            pass
+            return resp.data[0] if resp.data else None
+        except Exception as e:
+            logger.error("get_leave_application_by_id (Supabase) failed: %s", e)
+            return None
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -578,10 +665,13 @@ def get_leave_applications_by_room_and_name(room_number, student_name):
     """Fetch leave applications matching room number AND student name."""
     if _sb_ok():
         try:
-            resp = supabase.table("LeaveApplications").select("*").ilike("room_number", room_number.strip()).ilike("student_name", f"%{student_name.strip()}%").order("date_submitted", desc=True).execute()
+            room = _sanitize_search(room_number)
+            name = _sanitize_search(student_name)
+            resp = supabase.table("LeaveApplications").select("*").ilike("room_number", room.strip()).ilike("student_name", f"%{name.strip()}%").order("date_submitted", desc=True).execute()
             return resp.data or []
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("get_leave_applications_by_room_and_name (Supabase) failed: %s", e)
+            return []
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -592,8 +682,7 @@ def get_leave_applications_by_room_and_name(room_number, student_name):
             ORDER BY date_submitted DESC
         """
         cursor.execute(query, (room_number.strip(), f"%{escape_like(student_name.strip())}%"))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        return [dict(row) for row in cursor.fetchall()]
 
 
 def get_all_leave_applications(status_filter=None, block_filter=None, search_query=None):
@@ -605,8 +694,8 @@ def get_all_leave_applications(status_filter=None, block_filter=None, search_que
                 q = q.eq("status", status_filter)
             if block_filter and block_filter not in ("All", "All Blocks"):
                 q = q.ilike("block_name", f"{block_filter}%")
-            if search_query and search_query.strip():
-                s = search_query.strip()
+            s = _sanitize_search(search_query)
+            if s:
                 q = q.or_(
                     f"student_name.ilike.%{s}%,"
                     f"room_number.ilike.%{s}%,"
@@ -615,8 +704,9 @@ def get_all_leave_applications(status_filter=None, block_filter=None, search_que
                 )
             resp = q.order("date_submitted", desc=True).execute()
             return resp.data or []
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("get_all_leave_applications (Supabase) failed: %s", e)
+            return []
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -638,8 +728,7 @@ def get_all_leave_applications(status_filter=None, block_filter=None, search_que
 
         query += " ORDER BY date_submitted DESC"
         cursor.execute(query, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        return [dict(row) for row in cursor.fetchall()]
 
 
 def update_leave_status(leave_id, status, warden_remarks="", gate_pass_code=""):
@@ -652,10 +741,12 @@ def update_leave_status(leave_id, status, warden_remarks="", gate_pass_code=""):
                 "status": status,
                 "warden_remarks": warden_remarks,
                 "gate_pass_code": gate_pass_code,
-                "last_updated": now
+                "last_updated": now,
             }).eq("leave_id", leave_id).execute()
-        except Exception:
-            pass
+            return
+        except Exception as e:
+            logger.error("update_leave_status (Supabase) failed: %s", e)
+            raise DatabaseError("Could not update the leave application.") from e
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -672,8 +763,10 @@ def delete_leave_application(leave_id):
     if _sb_ok():
         try:
             supabase.table("LeaveApplications").delete().eq("leave_id", leave_id).execute()
-        except Exception:
-            pass
+            return
+        except Exception as e:
+            logger.error("delete_leave_application (Supabase) failed: %s", e)
+            raise DatabaseError("Could not delete the leave application.") from e
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -681,5 +774,5 @@ def delete_leave_application(leave_id):
         conn.commit()
 
 
-# Initialize the local SQLite fallback DB when this module is loaded
+# Initialize the local SQLite schema on import (no-op when Supabase is configured)
 init_db()
