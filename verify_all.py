@@ -23,7 +23,7 @@ print("     COMPREHENSIVE HOSTEL SYSTEM RE-VERIFICATION")
 print("==================================================")
 
 # Step 1: Syntax check the web app files
-files = ["database.py", "app.py"]
+files = ["database.py", "app.py", "qr_gen.py"]
 print("\n[Step 1] Checking Python Syntax & Compilability...")
 for f in files:
     try:
@@ -154,9 +154,49 @@ assert "(" not in database._sanitize_search("a(b)c") and ")" not in database._sa
 assert database.get_all_grievances(search_query="x,y(z)") == [] or isinstance(database.get_all_grievances(search_query="x,y(z)"), list)
 print("  [OK] Commas/parentheses stripped from search terms.")
 
+# Step 5: New features — ratings, analytics, cluster detection, Lost & Found, QR
+print("\n[Step 5] Verifying ratings, analytics, cluster detection, Lost & Found, QR...")
+
+# ratings
+database.update_grievance(g_id_1, "Resolved", "Fixed", "Tech")
+database.submit_grievance_feedback(g_id_1, 4, "Good work")
+assert database.get_grievance_by_id(g_id_1)['rating'] == 4
+print("  [OK] Resolution rating & feedback.")
+
+# analytics
+summ = database.get_analytics_summary()
+assert summ['total'] >= 2 and summ['rated_count'] >= 1
+assert 0.0 <= summ['resolution_rate'] <= 100.0
+print(f"  [OK] Analytics summary (resolution_rate={summ['resolution_rate']}%, avg_rating={summ['avg_rating']}).")
+
+# cluster detection
+ca = database.create_grievance("Cx", "9", "Plumbing & Water", "Leak", block_name="GH-2", priority="Normal")
+cb = database.create_grievance("Cy", "10", "Plumbing & Water", "Leak", block_name="GH-2", priority="Normal")
+clusters = database.detect_cluster_outages()
+assert any(c['block'] == "GH-2" and c['count'] >= 2 for c in clusters)
+print(f"  [OK] Cluster outage detection ({len(clusters)} cluster group(s)).")
+
+# lost & found
+lf = database.create_lost_found_item("Umbrella", "Lost", "Other", "Library", "Black", "B-7")
+assert any(i['item_id'] == lf for i in database.get_all_lost_found())
+database.update_lost_found_status(lf, "Claimed / Returned")
+assert all(i['item_id'] != lf for i in database.get_all_lost_found(status_filter="Open"))
+database.delete_lost_found_item(lf)
+print("  [OK] Lost & Found CRUD.")
+
+# gate pass code lookup + QR
+database.update_leave_status(lv_id, "Approved / Gate Pass Issued", "OK", "GP-2026-VERIFY1")
+found_pass = database.get_leave_by_gate_pass_code("GP-2026-VERIFY1")
+assert found_pass and found_pass['leave_id'] == lv_id
+import qr_gen
+assert qr_gen.qr_svg("GP-2026-VERIFY1").startswith("<svg")
+print("  [OK] Gate pass code lookup + offline QR generation.")
+
 # Clean up test rows
 database.delete_grievance(g_id_1)
 database.delete_grievance(g_id_2)
+database.delete_grievance(ca)
+database.delete_grievance(cb)
 database.delete_notice(n_id)
 database.delete_notice(n_id_timed)
 database.delete_leave_application(lv_id)

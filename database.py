@@ -142,6 +142,8 @@ def init_db():
             ('assigned_staff', "ALTER TABLE Grievances ADD COLUMN assigned_staff TEXT DEFAULT ''"),
             ('suggestion', "ALTER TABLE Grievances ADD COLUMN suggestion TEXT DEFAULT ''"),
             ('photo_path', "ALTER TABLE Grievances ADD COLUMN photo_path TEXT DEFAULT ''"),
+            ('rating', "ALTER TABLE Grievances ADD COLUMN rating INTEGER DEFAULT 0"),
+            ('feedback', "ALTER TABLE Grievances ADD COLUMN feedback TEXT DEFAULT ''"),
         ]:
             if col not in columns:
                 cursor.execute(ddl)
@@ -182,6 +184,21 @@ def init_db():
                 gate_pass_code TEXT DEFAULT '',
                 date_submitted TEXT NOT NULL,
                 last_updated TEXT DEFAULT ''
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS LostAndFound (
+                item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                item_type TEXT NOT NULL DEFAULT 'Lost',
+                category TEXT DEFAULT 'Other',
+                location TEXT DEFAULT '',
+                description TEXT DEFAULT '',
+                photo_path TEXT DEFAULT '',
+                contact_info TEXT DEFAULT '',
+                status TEXT DEFAULT 'Open',
+                date_posted TEXT NOT NULL
             )
         ''')
 
@@ -685,6 +702,32 @@ def get_leave_applications_by_room_and_name(room_number, student_name):
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_leave_by_gate_pass_code(code):
+    """Look up an approved leave application by its exact gate pass code
+    (used by the gate security verifier). Returns the record or None."""
+    code = (code or "").strip()
+    if not code:
+        return None
+
+    if _sb_ok():
+        try:
+            resp = supabase.table("LeaveApplications").select("*").ilike("gate_pass_code", code).execute()
+            return resp.data[0] if resp.data else None
+        except Exception as e:
+            logger.error("get_leave_by_gate_pass_code (Supabase) failed: %s", e)
+            return None
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM LeaveApplications WHERE UPPER(TRIM(gate_pass_code)) = ?", (code.upper(),))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+# Alias for compatibility
+get_leave_application_by_pass_code = get_leave_by_gate_pass_code
+
+
 def get_all_leave_applications(status_filter=None, block_filter=None, search_query=None):
     """Fetch all leave applications with optional status/block filtering and text search."""
     if _sb_ok():
@@ -771,6 +814,270 @@ def delete_leave_application(leave_id):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM LeaveApplications WHERE leave_id = ?", (leave_id,))
+        conn.commit()
+
+
+# ==========================================
+# ⭐ RESOLUTION RATINGS & FEEDBACK
+# ==========================================
+def submit_grievance_feedback(grievance_id, rating, feedback=""):
+    """Save a student's 1–5 star rating and feedback on a resolved grievance."""
+    try:
+        rating = int(rating)
+    except (TypeError, ValueError):
+        rating = 0
+    rating = max(0, min(5, rating))
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if _sb_ok():
+        try:
+            supabase.table("Grievances").update({
+                "rating": rating,
+                "feedback": feedback,
+                "last_updated": now,
+            }).eq("grievance_id", grievance_id).execute()
+            return
+        except Exception as e:
+            logger.error("submit_grievance_feedback (Supabase) failed: %s", e)
+            raise DatabaseError("Could not save your rating. Please try again.") from e
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE Grievances SET rating = ?, feedback = ?, last_updated = ? WHERE grievance_id = ?",
+            (rating, feedback, now, grievance_id),
+        )
+        conn.commit()
+
+
+# ==========================================
+# 📊 ANALYTICS & SLA
+# ==========================================
+def _parse_dt(value):
+    try:
+        return datetime.datetime.strptime((value or "").strip()[:19], "%Y-%m-%d %H:%M:%S")
+    except (ValueError, AttributeError):
+        return None
+
+
+def get_analytics_summary():
+    """Aggregate operational KPIs, distributions, ratings, and SLA aging."""
+    rows = get_all_grievances()
+    now = datetime.datetime.now()
+
+    summary = {
+        "total": len(rows),
+        "pending": 0, "in_progress": 0, "resolved": 0, "rejected": 0, "emergency": 0,
+        "resolution_rate": 0.0,
+        "avg_rating": 0.0, "rated_count": 0, "ratings_count": 0,
+        "by_category": {}, "by_block": {}, "by_priority": {}, "by_status": {},
+        "overdue_24h": 0, "overdue_48h": 0, "overdue_list": [],
+    }
+
+    rating_sum = 0
+    for r in rows:
+        status = (r.get("status") or "").strip()
+        key = status.lower().replace(" ", "_")
+        if key in ("pending", "in_progress", "resolved", "rejected"):
+            summary[key] += 1
+        summary["by_status"][status or "Unknown"] = summary["by_status"].get(status or "Unknown", 0) + 1
+
+        cat = (r.get("category") or "Other").strip()
+        summary["by_category"][cat] = summary["by_category"].get(cat, 0) + 1
+
+        blk = (r.get("block_name") or "Unknown").strip()
+        summary["by_block"][blk] = summary["by_block"].get(blk, 0) + 1
+
+        pri = (r.get("priority") or "Normal").strip()
+        summary["by_priority"][pri] = summary["by_priority"].get(pri, 0) + 1
+
+        if "Emergency" in pri and status != "Resolved":
+            summary["emergency"] += 1
+
+        try:
+            rt = int(r.get("rating") or 0)
+        except (TypeError, ValueError):
+            rt = 0
+        if rt > 0:
+            rating_sum += rt
+            summary["rated_count"] += 1
+            summary["ratings_count"] += 1
+
+        # SLA aging on still-open tickets
+        if status in ("Pending", "In Progress"):
+            dt = _parse_dt(r.get("date_submitted"))
+            if dt:
+                age_h = (now - dt).total_seconds() / 3600.0
+                if age_h > 48:
+                    summary["overdue_48h"] += 1
+                    summary["overdue_list"].append({"ticket": r, "hours": round(age_h, 1), "sla": ">48h Breached"})
+                elif age_h > 24:
+                    summary["overdue_24h"] += 1
+                    summary["overdue_list"].append({"ticket": r, "hours": round(age_h, 1), "sla": ">24h Warning"})
+
+    if summary["total"]:
+        summary["resolution_rate"] = round(summary["resolved"] * 100.0 / summary["total"], 1)
+    if summary["rated_count"]:
+        summary["avg_rating"] = round(rating_sum / summary["rated_count"], 2)
+
+    return summary
+
+
+def detect_cluster_outages(window_hours=48, threshold=2):
+    """Flag blocks with >= `threshold` unresolved complaints of the same category
+    reported within `window_hours`. Returns a list of alert dicts."""
+    rows = get_all_grievances()
+    now = datetime.datetime.now()
+    groups = {}
+    for r in rows:
+        status = (r.get("status") or "").strip()
+        if status in ("Resolved", "Rejected"):
+            continue
+        dt = _parse_dt(r.get("date_submitted"))
+        if not dt or (now - dt).total_seconds() / 3600.0 > window_hours:
+            continue
+        block = (r.get("block_name") or "Unknown").strip()
+        cat = (r.get("category") or "Other").strip()
+        groups.setdefault((block, cat), []).append(r)
+
+    alerts = []
+    for (block, cat), items in groups.items():
+        if len(items) >= threshold:
+            alerts.append({
+                "block": block,
+                "category": cat,
+                "count": len(items),
+                "rooms": [it.get("room_number", "") for it in items],
+                "ticket_ids": [it.get("grievance_id") for it in items],
+            })
+    alerts.sort(key=lambda a: a["count"], reverse=True)
+    return alerts
+
+
+# ==========================================
+# 🎒 LOST & FOUND
+# ==========================================
+def create_lost_found_item(title, item_type, category, location, description, contact_info="", photo_path=""):
+    """Create a Lost or Found bulletin entry and return its ID."""
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if _sb_ok():
+        try:
+            resp = supabase.table("LostAndFound").insert({
+                "title": title,
+                "item_type": item_type,
+                "category": category,
+                "location": location,
+                "description": description,
+                "photo_path": photo_path or "",
+                "contact_info": contact_info,
+                "status": "Open",
+                "date_posted": now,
+            }).execute()
+            return resp.data[0]["item_id"] if resp.data else None
+        except Exception as e:
+            logger.error("create_lost_found_item (Supabase) failed: %s", e)
+            raise DatabaseError("Could not post the item. Please try again.") from e
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO LostAndFound (title, item_type, category, location, description, photo_path, contact_info, status, date_posted)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'Open', ?)
+        ''', (title, item_type, category, location, description, photo_path or "", contact_info, now))
+        item_id = cursor.lastrowid
+        conn.commit()
+    return item_id
+
+
+def get_lost_found_by_id(item_id):
+    """Fetch a single lost & found item by its ID."""
+    if _sb_ok():
+        try:
+            resp = supabase.table("LostAndFound").select("*").eq("item_id", item_id).execute()
+            return resp.data[0] if resp.data else None
+        except Exception as e:
+            logger.error("get_lost_found_by_id (Supabase) failed: %s", e)
+            return None
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM LostAndFound WHERE item_id = ?", (item_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def get_all_lost_found(item_type=None, item_type_filter=None, status_filter=None, search_query=None):
+    """Fetch Lost & Found items with optional type/status filters and text search."""
+    target_type = item_type_filter or item_type
+
+    if _sb_ok():
+        try:
+            q = supabase.table("LostAndFound").select("*")
+            if target_type and target_type not in ("All", "All Types"):
+                q = q.eq("item_type", target_type)
+            if status_filter and status_filter not in ("All", "All Statuses"):
+                q = q.eq("status", status_filter)
+            s = _sanitize_search(search_query)
+            if s:
+                q = q.or_(
+                    f"title.ilike.%{s}%,category.ilike.%{s}%,location.ilike.%{s}%,description.ilike.%{s}%"
+                )
+            resp = q.order("date_posted", desc=True).execute()
+            return resp.data or []
+        except Exception as e:
+            logger.error("get_all_lost_found (Supabase) failed: %s", e)
+            return []
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        query = "SELECT * FROM LostAndFound WHERE 1=1"
+        params = []
+        if target_type and target_type not in ("All", "All Types"):
+            query += " AND item_type = ?"
+            params.append(target_type)
+        if status_filter and status_filter not in ("All", "All Statuses"):
+            query += " AND status = ?"
+            params.append(status_filter)
+        if search_query and search_query.strip():
+            sq = f"%{escape_like(search_query.strip())}%"
+            query += (" AND (title LIKE ? ESCAPE '\\' OR category LIKE ? ESCAPE '\\'"
+                      " OR location LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')")
+            params.extend([sq, sq, sq, sq])
+        query += " ORDER BY date_posted DESC"
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def update_lost_found_status(item_id, status):
+    """Update a Lost & Found item's status (e.g. 'Claimed / Returned')."""
+    if _sb_ok():
+        try:
+            supabase.table("LostAndFound").update({"status": status}).eq("item_id", item_id).execute()
+            return
+        except Exception as e:
+            logger.error("update_lost_found_status (Supabase) failed: %s", e)
+            raise DatabaseError("Could not update the item.") from e
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE LostAndFound SET status = ? WHERE item_id = ?", (status, item_id))
+        conn.commit()
+
+
+def delete_lost_found_item(item_id):
+    """Delete a Lost & Found item by ID."""
+    if _sb_ok():
+        try:
+            supabase.table("LostAndFound").delete().eq("item_id", item_id).execute()
+            return
+        except Exception as e:
+            logger.error("delete_lost_found_item (Supabase) failed: %s", e)
+            raise DatabaseError("Could not delete the item.") from e
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM LostAndFound WHERE item_id = ?", (item_id,))
         conn.commit()
 
 

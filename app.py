@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import database
+import qr_gen
 from database import DatabaseError
 
 
@@ -45,6 +46,40 @@ def paginate(items, key, page_size=25):
     )
     start = (int(page) - 1) * page_size
     return items[start:start + page_size]
+
+
+def render_gate_pass_card(rec):
+    """Render an ID-style digital gate pass card with an embedded scannable QR SVG."""
+    gp = rec.get("gate_pass_code", "")
+    payload = (
+        f"HOSTEL GATE PASS|{gp}|L-{rec.get('leave_id')}|{rec.get('student_name','')}|"
+        f"{rec.get('block_name','')} {rec.get('room_number','')}|"
+        f"{rec.get('from_date','')} to {rec.get('to_date','')}"
+    )
+    qr = qr_gen.qr_svg(payload, scale=4, quiet=3)
+    card = f"""
+<div style="border:1px solid var(--border);border-radius:16px;overflow:hidden;max-width:520px;margin:8px 0;background:var(--card);">
+  <div style="background:var(--accent);color:#fff;padding:12px 18px;font-weight:800;letter-spacing:.5px;">
+    🎫 DIGITAL HOSTEL GATE PASS
+  </div>
+  <div style="display:flex;gap:16px;padding:18px;align-items:center;">
+    <div style="flex:1;min-width:0;color:var(--text);font-size:14px;line-height:1.7;">
+      <div><b>{rec.get('student_name','')}</b></div>
+      <div>Block/Room: <b>{rec.get('block_name','')} · {rec.get('room_number','')}</b></div>
+      <div>Valid: <b>{rec.get('from_date','')} → {rec.get('to_date','')}</b></div>
+      <div>Destination: {rec.get('destination','')}</div>
+      <div>Warden sign-off: {rec.get('warden_remarks') or 'Approved'}</div>
+      <div style="margin-top:6px;font-family:var(--mono);background:var(--accent-soft);color:var(--accent-dark);display:inline-block;padding:3px 10px;border-radius:8px;">{gp}</div>
+    </div>
+    <div style="width:132px;height:132px;flex:none;background:#fff;padding:6px;border-radius:10px;">{qr}</div>
+  </div>
+  <div style="padding:8px 18px;background:var(--card-hover);color:var(--text-muted);font-size:12px;">
+    Present this pass (and photo ID) at the security gate. Scannable offline.
+  </div>
+</div>
+"""
+    st.markdown(card, unsafe_allow_html=True)
+
 
 # Page Configuration
 st.set_page_config(
@@ -416,6 +451,27 @@ portal_mode = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
+with st.sidebar.expander("🔐 Gate Security Verifier"):
+    st.caption("For gate officers — verify a Gate Pass Code instantly.")
+    verify_code = st.text_input("Gate Pass Code", placeholder="e.g. GP-2026-7X9K2M", key="gate_verify_code")
+    if st.button("✅ Verify Pass", use_container_width=True, key="gate_verify_btn"):
+        if not verify_code.strip():
+            st.warning("Enter a gate pass code.")
+        else:
+            rec = database.get_leave_by_gate_pass_code(verify_code.strip())
+            if rec and "Approved" in (rec.get("status") or ""):
+                st.success("✅ VALID PASS")
+                st.markdown(
+                    f"**{rec['student_name']}** — {rec['block_name']} Room {rec['room_number']}  \n"
+                    f"Valid **{rec['from_date']} → {rec['to_date']}**  \n"
+                    f"Destination: {rec['destination']}"
+                )
+            elif rec:
+                st.error(f"⛔ NOT VALID — status is '{rec.get('status')}'.")
+            else:
+                st.error("⛔ INVALID — no approved pass matches that code.")
+
+st.sidebar.markdown("---")
 st.sidebar.markdown("### 📞 Emergency Desk")
 st.sidebar.info("""
 **Warden Desk:** Ext 101
@@ -431,10 +487,11 @@ st.sidebar.info("""
 if portal_mode == "🎓 Student Resident Portal":
     st.header("🎓 Student Resident Desk")
 
-    tab_submit, tab_track, tab_leave, tab_notices = st.tabs([
+    tab_submit, tab_track, tab_leave, tab_lostfound, tab_notices = st.tabs([
         "📝 Register Complaint",
         "🔍 Track Status",
         "🌴 Leave & Gate Pass",
+        "🎒 Lost & Found Desk",
         "📢 Campus Notices"
     ])
 
@@ -600,6 +657,30 @@ if portal_mode == "🎓 Student Resident Portal":
                         st.markdown(f"**Assigned Staff:** {item.get('assigned_staff') or 'Unassigned'}")
                         st.markdown(f"**Warden Remarks:** {item.get('admin_remarks') or 'Awaiting review'}")
                         st.caption(f"Last updated: {item.get('last_updated')}")
+
+                        # Resolution rating (only for resolved tickets)
+                        if item.get('status') == 'Resolved':
+                            existing = 0
+                            try:
+                                existing = int(item.get('rating') or 0)
+                            except (TypeError, ValueError):
+                                existing = 0
+                            if existing > 0:
+                                st.markdown(f"**Your Rating:** {'⭐' * existing} ({existing}/5)")
+                                if item.get('feedback'):
+                                    st.caption(f"Your feedback: {item['feedback']}")
+                            else:
+                                with st.form(f"rate_form_{item['grievance_id']}", enter_to_submit=False):
+                                    st.markdown("**Rate this resolution**")
+                                    stars = st.slider("Stars", 1, 5, 5, key=f"stars_{item['grievance_id']}")
+                                    fb = st.text_area("Feedback (optional)", key=f"fb_{item['grievance_id']}",
+                                                      placeholder="How was the resolution?")
+                                    if st.form_submit_button("⭐ Submit Rating", type="primary"):
+                                        try:
+                                            database.submit_grievance_feedback(item['grievance_id'], stars, fb.strip())
+                                            st.success("🙏 Thanks! Your rating has been recorded.")
+                                        except DatabaseError as e:
+                                            st.error(f"❌ {e}")
             else:
                 st.warning("No matching grievance records found. Please check your details and try again.")
 
@@ -722,8 +803,10 @@ if portal_mode == "🎓 Student Resident Portal":
 
                             if l_by_id:
                                 # Full detail only when the exact Leave Ticket ID was supplied.
-                                if l_item.get('gate_pass_code'):
-                                    st.success(f"🎫 **APPROVED GATE PASS CODE:** `{l_item['gate_pass_code']}`\n\nShow this code to the Hostel Security Gate Officer upon departure.")
+                                if l_item.get('gate_pass_code') and "Approved" in l_status:
+                                    render_gate_pass_card(l_item)
+                                elif l_item.get('gate_pass_code'):
+                                    st.success(f"🎫 **GATE PASS CODE:** `{l_item['gate_pass_code']}`")
                                 st.markdown(f"**Student Contact:** {l_item['phone_number']} | **Parent Emergency Contact:** {l_item['parent_phone']}")
                             else:
                                 # Room + name is guessable, so withhold the gate pass and mask contacts.
@@ -733,6 +816,73 @@ if portal_mode == "🎓 Student Resident Portal":
                             st.caption(f"Warden Notes: {l_item.get('warden_remarks') or 'Awaiting warden authorization'} | Submitted: {l_item['date_submitted']}")
                 else:
                     st.warning("No matching leave application records found.")
+
+    # TAB: LOST & FOUND DESK
+    with tab_lostfound:
+        st.subheader("🎒 Hostel Lost & Found Bulletin")
+        lf_view, lf_report = st.tabs(["🔎 Browse Items", "📝 Report an Item"])
+
+        LF_CATEGORIES = ["Room Keys", "ID / Cards", "Electronics", "Books & Notes",
+                         "Clothing", "Sports Gear", "Wallet / Money", "Other"]
+
+        with lf_view:
+            fc1, fc2 = st.columns([1, 2])
+            with fc1:
+                lf_type = st.selectbox("Show", ["All Types", "Lost", "Found"], key="lf_view_type")
+            with fc2:
+                lf_search = st.text_input("Search items", placeholder="keys, phone, library...", key="lf_view_search")
+            items = database.get_all_lost_found(
+                item_type_filter=lf_type, status_filter="Open", search_query=lf_search
+            )
+            if items:
+                st.caption(f"{len(items)} open item(s):")
+                for it in items:
+                    tag = "🔴 LOST" if it.get("item_type") == "Lost" else "🟢 FOUND"
+                    with st.expander(f"{tag} · {it['title']} ({it.get('category','Other')})"):
+                        st.markdown(f"**Where:** {it.get('location') or '—'}")
+                        if it.get("description"):
+                            st.markdown(f"**Details:** {it['description']}")
+                        if it.get("photo_path"):
+                            try:
+                                st.image(it["photo_path"], width=260)
+                            except Exception:
+                                pass
+                        st.markdown(f"**Contact:** {it.get('contact_info') or '—'}")
+                        st.caption(f"Posted: {it.get('date_posted')}")
+            else:
+                st.info("No open Lost & Found items right now.")
+
+        with lf_report:
+            with st.form("lost_found_form", clear_on_submit=True, enter_to_submit=False):
+                r1, r2 = st.columns(2)
+                with r1:
+                    lf_item_type = st.radio("Type", ["Lost", "Found"], horizontal=True)
+                    lf_title = st.text_input("Item Title *", placeholder="e.g. Black wallet, Room key #B-204")
+                    lf_cat = st.selectbox("Category", LF_CATEGORIES)
+                with r2:
+                    lf_location = st.text_input("Location (lost/found at) *", placeholder="e.g. Mess Hall, Block BH-1 stairs")
+                    lf_contact = st.text_input("Your Contact (phone / room) *", placeholder="e.g. B-204 / +91 90000 00000")
+                lf_desc = st.text_area("Description", placeholder="Colour, brand, distinguishing marks...")
+                lf_photo = st.file_uploader("Photo (optional)", type=["png", "jpg", "jpeg"], key="lf_photo")
+                lf_submit = st.form_submit_button("📮 Post to Bulletin", type="primary", use_container_width=True)
+                if lf_submit:
+                    if not lf_title.strip() or not lf_location.strip() or not lf_contact.strip():
+                        st.error("⚠️ Title, Location, and Contact are required.")
+                    elif lf_photo is not None and lf_photo.size > 5 * 1024 * 1024:
+                        st.error("⚠️ Photo is too large. Please upload an image under 5 MB.")
+                    else:
+                        try:
+                            photo_url = ""
+                            if lf_photo is not None:
+                                photo_url = database.upload_photo(lf_photo.getbuffer(), lf_photo.name)
+                            database.create_lost_found_item(
+                                title=lf_title.strip(), item_type=lf_item_type, category=lf_cat,
+                                location=lf_location.strip(), description=lf_desc.strip(),
+                                contact_info=lf_contact.strip(), photo_path=photo_url,
+                            )
+                            st.success("✅ Posted to the Lost & Found bulletin. Thank you!")
+                        except DatabaseError as e:
+                            st.error(f"❌ {e}")
 
     # TAB 4: CAMPUS NOTICES
     with tab_notices:
@@ -787,7 +937,93 @@ else:
             st.session_state["admin_authenticated"] = False
             st.rerun()
 
-        admin_tab1, admin_tab2, admin_tab3 = st.tabs(["📋 Dispatch & Grievance Operations", "🌴 Student Leave & Gate Pass Roster", "📢 Notice Manager"])
+        # --- CLUSTER OUTAGE ALERT BANNER ---
+        cluster_alerts = database.detect_cluster_outages()
+        if cluster_alerts:
+            lines = [
+                f"**{a['count']}× {a['category']}** in **{a['block']}** "
+                f"(tickets: {', '.join('#' + str(i) for i in a['ticket_ids'])})"
+                for a in cluster_alerts
+            ]
+            st.error("⚠️ **Cluster Outage Alert** — repeated unresolved issues detected:\n\n"
+                     + "\n\n".join(lines))
+
+        admin_tab0, admin_tab1, admin_tab2, admin_tab_lf, admin_tab3 = st.tabs([
+            "📊 Operations & SLA Analytics",
+            "📋 Dispatch & Grievance Operations",
+            "🌴 Student Leave & Gate Pass Roster",
+            "🎒 Lost & Found Inventory",
+            "📢 Notice Manager",
+        ])
+
+        # TAB 0: OPERATIONS & SLA ANALYTICS
+        with admin_tab0:
+            st.subheader("📊 Maintenance Operations & SLA Dashboard")
+            a = database.get_analytics_summary()
+
+            k1, k2, k3, k4, k5 = st.columns(5)
+            k1.metric("Total Tickets", a["total"])
+            k2.metric("Resolution Rate", f"{a['resolution_rate']}%")
+            k3.metric("Avg. Rating", f"{a['avg_rating']} ⭐" if a["rated_count"] else "—",
+                      help=f"Based on {a['rated_count']} rating(s)")
+            k4.metric("Pending", a["pending"] + a["in_progress"])
+            k5.metric("Emergency Open", a["emergency"])
+
+            st.markdown("---")
+            st.markdown("#### ⏱️ SLA Aging Monitor (open tickets)")
+            sc1, sc2 = st.columns(2)
+            sc1.metric("Overdue > 24h", a["overdue_24h"])
+            sc2.metric("Overdue > 48h", a["overdue_48h"])
+
+            # Overdue detail table
+            now = datetime.datetime.now()
+            overdue_rows = []
+            for g in database.get_all_grievances():
+                if (g.get("status") or "") in ("Pending", "In Progress"):
+                    try:
+                        dt = datetime.datetime.strptime((g.get("date_submitted") or "").strip()[:19], "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        continue
+                    age_h = (now - dt).total_seconds() / 3600.0
+                    if age_h > 24:
+                        overdue_rows.append({
+                            "ID": g.get("grievance_id"),
+                            "Block": g.get("block_name"),
+                            "Room": g.get("room_number"),
+                            "Category": g.get("category"),
+                            "Priority": g.get("priority"),
+                            "Age (h)": round(age_h, 1),
+                            "Urgency": "🔴 >48h" if age_h > 48 else "🟠 >24h",
+                        })
+            if overdue_rows:
+                overdue_rows.sort(key=lambda r: r["Age (h)"], reverse=True)
+                st.dataframe(pd.DataFrame(overdue_rows), use_container_width=True, hide_index=True)
+            else:
+                st.success("✅ No tickets breaching the 24h SLA. Nice work!")
+
+            st.markdown("---")
+            ch1, ch2, ch3 = st.columns(3)
+            with ch1:
+                st.markdown("**By Category**")
+                if a["by_category"]:
+                    st.bar_chart(pd.DataFrame(
+                        {"Count": list(a["by_category"].values())},
+                        index=list(a["by_category"].keys()),
+                    ))
+            with ch2:
+                st.markdown("**By Block**")
+                if a["by_block"]:
+                    st.bar_chart(pd.DataFrame(
+                        {"Count": list(a["by_block"].values())},
+                        index=list(a["by_block"].keys()),
+                    ))
+            with ch3:
+                st.markdown("**By Priority**")
+                if a["by_priority"]:
+                    st.bar_chart(pd.DataFrame(
+                        {"Count": list(a["by_priority"].values())},
+                        index=list(a["by_priority"].keys()),
+                    ))
 
         # TAB 1: GRIEVANCE DISPATCH OPERATIONS
         with admin_tab1:
@@ -856,6 +1092,14 @@ else:
                             st.markdown(f"**Current Status:** `{selected_item['status']}`")
                             st.markdown(f"**Priority:** `{selected_item['priority']}`")
                             st.markdown(f"**Assigned Staff:** `{selected_item.get('assigned_staff') or 'None'}`")
+                            try:
+                                _rt = int(selected_item.get('rating') or 0)
+                            except (TypeError, ValueError):
+                                _rt = 0
+                            if _rt > 0:
+                                st.markdown(f"**Student Rating:** {'⭐' * _rt} ({_rt}/5)")
+                                if selected_item.get('feedback'):
+                                    st.caption(f"Feedback: {selected_item['feedback']}")
 
                         st.markdown(f"**Issue Description:**\n>{selected_item['description']}")
                         if selected_item.get('photo_path'):
@@ -977,6 +1221,9 @@ else:
                             st.markdown(f"**Leave Dates:** `{sel_leave['from_date']}` to `{sel_leave['to_date']}`")
                             st.markdown(f"**Reason:** {sel_leave['leave_reason']}")
 
+                        if sel_leave.get('gate_pass_code') and "Approved" in (sel_leave.get('status') or ""):
+                            render_gate_pass_card(sel_leave)
+
                         st.markdown("---")
                         with st.form(f"leave_action_form_{sel_lid}", enter_to_submit=False):
                             la_col1, la_col2 = st.columns(2)
@@ -1025,6 +1272,73 @@ else:
                 )
             else:
                 st.info("No leave applications match the current filter criteria.")
+
+        # TAB: LOST & FOUND INVENTORY (WARDEN)
+        with admin_tab_lf:
+            st.subheader("🎒 Lost & Found Inventory Manager")
+
+            wf1, wf2, wf3 = st.columns([1.2, 1.2, 3])
+            with wf1:
+                w_lf_type = st.selectbox("Type", ["All Types", "Lost", "Found"], key="w_lf_type")
+            with wf2:
+                w_lf_status = st.selectbox("Status", ["All Statuses", "Open", "Claimed / Returned"], key="w_lf_status")
+            with wf3:
+                w_lf_search = st.text_input("Search", placeholder="Search items...", key="w_lf_search")
+
+            lf_items = database.get_all_lost_found(
+                item_type_filter=w_lf_type, status_filter=w_lf_status, search_query=w_lf_search
+            )
+
+            if lf_items:
+                lf_df = pd.DataFrame(lf_items)
+                show_cols = [c for c in ["item_id", "item_type", "title", "category", "location", "status", "contact_info", "date_posted"] if c in lf_df.columns]
+                st.dataframe(lf_df[show_cols], use_container_width=True, hide_index=True,
+                             column_config={"item_id": "ID", "item_type": "Type", "date_posted": "Posted"})
+
+                st.markdown("---")
+                for it in paginate(lf_items, key="w_lf_pager", page_size=15):
+                    tag = "🔴 LOST" if it.get("item_type") == "Lost" else "🟢 FOUND"
+                    with st.expander(f"{tag} · #{it['item_id']} {it['title']} — {it.get('status','Open')}"):
+                        st.markdown(f"**Category:** {it.get('category','Other')}  |  **Where:** {it.get('location') or '—'}")
+                        if it.get("description"):
+                            st.markdown(f"**Details:** {it['description']}")
+                        st.markdown(f"**Contact:** {it.get('contact_info') or '—'}")
+                        if it.get("photo_path"):
+                            try:
+                                st.image(it["photo_path"], width=240)
+                            except Exception:
+                                pass
+                        ac1, ac2 = st.columns(2)
+                        with ac1:
+                            if it.get("status") != "Claimed / Returned":
+                                if st.button("✅ Mark Claimed / Returned", key=f"lf_claim_{it['item_id']}", use_container_width=True):
+                                    try:
+                                        database.update_lost_found_status(it["item_id"], "Claimed / Returned")
+                                        st.success("Marked as claimed / returned.")
+                                        st.rerun()
+                                    except DatabaseError as e:
+                                        st.error(f"❌ {e}")
+                            else:
+                                if st.button("↩️ Reopen", key=f"lf_reopen_{it['item_id']}", use_container_width=True):
+                                    try:
+                                        database.update_lost_found_status(it["item_id"], "Open")
+                                        st.rerun()
+                                    except DatabaseError as e:
+                                        st.error(f"❌ {e}")
+                        with ac2:
+                            confirm_lf = st.checkbox("⚠️ Confirm delete", key=f"lf_confirm_{it['item_id']}")
+                            if st.button("🗑️ Delete Item", key=f"lf_del_{it['item_id']}", use_container_width=True):
+                                if not confirm_lf:
+                                    st.warning("Tick 'Confirm delete' first.")
+                                else:
+                                    try:
+                                        database.delete_lost_found_item(it["item_id"])
+                                        st.warning("Item deleted.")
+                                        st.rerun()
+                                    except DatabaseError as e:
+                                        st.error(f"❌ {e}")
+            else:
+                st.info("No Lost & Found items match the current filter.")
 
         # TAB 3: NOTICE MANAGER
         with admin_tab3:

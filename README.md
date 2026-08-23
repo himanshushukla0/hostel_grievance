@@ -14,14 +14,29 @@ device (phone, tablet, or PC).
 **🎓 Student portal**
 - **Submit grievances** — block, room, category, priority, description, optional photo.
 - **Track status** — by Ticket ID, or by Room + Name if the ID is lost.
-- **Leave & gate pass** — apply for outstation leave and retrieve an approved gate pass.
+- **Rate resolutions** — leave a 1–5 star rating and feedback once a ticket is resolved.
+- **Leave & digital gate pass** — apply for outstation leave and, once approved, get an
+  ID-style gate pass card with a **scannable QR code** (generated offline, no dependencies).
+- **Lost & Found desk** — browse and report lost/found items with photo and contact.
 - **Notices** — read warden announcements, filtered by block.
 
 **🛡️ Warden / admin desk**
-- Filter, search, and paginate grievances and leave applications.
+- **Operations & SLA analytics** — resolution rate, average rating, pending/emergency KPIs,
+  category/block/priority charts, and an **SLA aging monitor** for tickets overdue >24h / >48h.
+- **Cluster outage alerts** — a banner warns when ≥2 unresolved complaints of the same
+  category hit one block within 48h (e.g. *"3× Plumbing in BH-1"*).
+- Filter, search, and paginate grievances and leave applications; see student ratings.
 - Assign staff, update status, add resolution notes, issue gate passes.
+- **Lost & Found inventory** — verify claims, mark items returned, remove entries.
+- **Gate security verifier** — a sidebar tool for gate officers to validate any pass code.
 - Post, expire, and delete announcements.
 - Export filtered datasets to CSV.
+
+### 🎫 Offline QR gate pass
+
+`qr_gen.py` is a dependency-free QR encoder (byte mode, Reed-Solomon ECC, mask optimization)
+that renders a scannable QR as inline SVG. It needs no `qrcode`/`pillow` package and no network,
+so passes render anywhere — including Streamlit Community Cloud.
 
 ---
 
@@ -86,7 +101,8 @@ create table if not exists "Grievances" (
   student_name  text, room_number text, category text, description text,
   date_submitted text, status text default 'Pending', admin_remarks text default '',
   last_updated  text default '', block_name text default 'BH-1', priority text default 'Normal',
-  assigned_staff text default '', suggestion text default '', photo_path text default ''
+  assigned_staff text default '', suggestion text default '', photo_path text default '',
+  rating integer default 0, feedback text default ''
 );
 
 create table if not exists "Notices" (
@@ -103,7 +119,19 @@ create table if not exists "LeaveApplications" (
   status text default 'Pending Warden Approval', warden_remarks text default '',
   gate_pass_code text default '', date_submitted text, last_updated text default ''
 );
+
+create table if not exists "LostAndFound" (
+  item_id     bigint generated always as identity primary key,
+  title text, item_type text default 'Lost', category text default 'Other',
+  location text default '', description text default '', photo_path text default '',
+  contact_info text default '', status text default 'Open', date_posted text
+);
 ```
+
+> **Upgrading an existing Supabase project?** Add the two new grievance columns:
+> `alter table "Grievances" add column if not exists rating integer default 0;`
+> `alter table "Grievances" add column if not exists feedback text default '';`
+> then create the `LostAndFound` table above. (SQLite runs these migrations automatically.)
 
 **2. Row Level Security** — decide your policy deliberately. With the publishable/anon key and
 **RLS disabled**, anyone with the key can read/write every row. Enable RLS and add policies that
@@ -145,6 +173,7 @@ Both run against an **isolated temporary SQLite file** and never touch your real
 hostel_grievance/
 ├── app.py                        # Streamlit web app (entry point)
 ├── database.py                   # Backend layer: Supabase (primary) or SQLite (fallback)
+├── qr_gen.py                     # Dependency-free offline QR code generator
 ├── requirements.txt              # Python dependencies
 ├── test_app.py                   # Isolated DB tests
 ├── verify_all.py                 # Broader verification script

@@ -111,4 +111,57 @@ print("Leave Application & Gate Pass issuance verified.")
 
 database.delete_leave_application(leave_id)
 
+# ---- NEW FEATURE TESTS ----
+
+# Resolution rating & feedback
+rg = database.create_grievance("Rita", "R-1", "Electrical", "Fan dead", block_name="BH-3", priority="Normal")
+database.update_grievance(rg, "Resolved", "Fan replaced", "Tech A")
+database.submit_grievance_feedback(rg, 5, "Fast fix, thanks!")
+rg_rec = database.get_grievance_by_id(rg)
+assert rg_rec['rating'] == 5
+assert rg_rec['feedback'] == "Fast fix, thanks!"
+# rating is clamped to 0..5
+database.submit_grievance_feedback(rg, 9, "")
+assert database.get_grievance_by_id(rg)['rating'] == 5
+print("Resolution rating & feedback verified.")
+
+# Analytics summary
+summary = database.get_analytics_summary()
+assert summary['total'] >= 1
+assert 0.0 <= summary['resolution_rate'] <= 100.0
+assert summary['rated_count'] >= 1
+assert isinstance(summary['by_category'], dict)
+assert 'overdue_24h' in summary and 'overdue_48h' in summary
+print(f"Analytics summary verified (total={summary['total']}, resolution_rate={summary['resolution_rate']}%).")
+
+# Cluster outage detection
+c1 = database.create_grievance("A", "1", "Plumbing & Water", "Leak", block_name="GH-1", priority="Normal")
+c2 = database.create_grievance("B", "2", "Plumbing & Water", "Leak", block_name="GH-1", priority="Normal")
+alerts = database.detect_cluster_outages(window_hours=48, threshold=2)
+assert any(a['block'] == "GH-1" and a['category'] == "Plumbing & Water" and a['count'] >= 2 for a in alerts)
+print("Cluster outage detection verified.")
+
+# Lost & Found CRUD
+item = database.create_lost_found_item("Silver watch", "Found", "Electronics", "Gym", "Casio", "B-9")
+assert item is not None
+assert len(database.get_all_lost_found(item_type_filter="Found")) >= 1
+database.update_lost_found_status(item, "Claimed / Returned")
+assert len(database.get_all_lost_found(status_filter="Open", item_type_filter="Found")) == 0 or all(
+    it['item_id'] != item for it in database.get_all_lost_found(status_filter="Open")
+)
+database.delete_lost_found_item(item)
+print("Lost & Found CRUD verified.")
+
+# Gate pass QR generation (decodes structurally to a non-empty matrix)
+import qr_gen
+qm = qr_gen.qr_matrix("GP-2026-7X9K2M", "M")
+assert len(qm) == 21 and all(len(r) == 21 for r in qm)  # version 1
+svg = qr_gen.qr_svg("GP-2026-7X9K2M")
+assert svg.startswith("<svg") and svg.endswith("</svg>")
+print("Offline QR generation verified.")
+
+# clean up new-feature rows
+for gid in (rg, c1, c2):
+    database.delete_grievance(gid)
+
 print("--- All Database Verification Tests Passed! ---")
