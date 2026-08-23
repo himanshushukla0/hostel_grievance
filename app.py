@@ -49,14 +49,14 @@ def paginate(items, key, page_size=25):
 
 
 def render_gate_pass_card(rec):
-    """Render an ID-style digital gate pass card with an embedded scannable QR SVG."""
+    """Render an ID-style digital gate pass card with an embedded scannable QR."""
     gp = rec.get("gate_pass_code", "")
     payload = (
         f"HOSTEL GATE PASS|{gp}|L-{rec.get('leave_id')}|{rec.get('student_name','')}|"
         f"{rec.get('block_name','')} {rec.get('room_number','')}|"
         f"{rec.get('from_date','')} to {rec.get('to_date','')}"
     )
-    qr = qr_gen.qr_svg(payload, scale=4, quiet=3)
+    qr_uri = qr_gen.qr_data_uri(payload, scale=4, quiet=3)
     card = f"""
 <div style="border:1px solid var(--border);border-radius:16px;overflow:hidden;max-width:520px;margin:8px 0;background:var(--card);">
   <div style="background:var(--accent);color:#fff;padding:12px 18px;font-weight:800;letter-spacing:.5px;">
@@ -71,7 +71,9 @@ def render_gate_pass_card(rec):
       <div>Warden sign-off: {rec.get('warden_remarks') or 'Approved'}</div>
       <div style="margin-top:6px;font-family:var(--mono);background:var(--accent-soft);color:var(--accent-dark);display:inline-block;padding:3px 10px;border-radius:8px;">{gp}</div>
     </div>
-    <div style="width:132px;height:132px;flex:none;background:#fff;padding:6px;border-radius:10px;">{qr}</div>
+    <div style="width:132px;height:132px;flex:none;background:#fff;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;">
+      <img src="{qr_uri}" width="120" height="120" style="display:block;" alt="Gate Pass QR" />
+    </div>
   </div>
   <div style="padding:8px 18px;background:var(--card-hover);color:var(--text-muted);font-size:12px;">
     Present this pass (and photo ID) at the security gate. Scannable offline.
@@ -79,6 +81,7 @@ def render_gate_pass_card(rec):
 </div>
 """
     st.markdown(card, unsafe_allow_html=True)
+
 
 
 # Page Configuration

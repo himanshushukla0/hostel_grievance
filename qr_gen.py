@@ -420,11 +420,18 @@ def qr_svg(text, ecl='M', scale=6, quiet=4, dark="#0f172a", light="#ffffff"):
         f'<rect width="{dim}" height="{dim}" fill="{light}"/>',
     ]
     for r in range(n):
-        for c in range(n):
+        c = 0
+        while c < n:
             if m[r][c]:
-                x = (c + quiet) * scale
+                start_c = c
+                while c < n and m[r][c]:
+                    c += 1
+                run_len = c - start_c
+                x = (start_c + quiet) * scale
                 y = (r + quiet) * scale
-                parts.append(f'<rect x="{x}" y="{y}" width="{scale}" height="{scale}" fill="{dark}"/>')
+                parts.append(f'<rect x="{x}" y="{y}" width="{run_len * scale}" height="{scale}" fill="{dark}"/>')
+            else:
+                c += 1
     parts.append('</svg>')
     return "".join(parts)
 
@@ -435,6 +442,7 @@ def qr_data_uri(text, ecl='M', scale=6, quiet=4):
     svg = qr_svg(text, ecl, scale, quiet)
     b64 = base64.b64encode(svg.encode("utf-8")).decode("ascii")
     return "data:image/svg+xml;base64," + b64
+
 
 
 if __name__ == "__main__":
