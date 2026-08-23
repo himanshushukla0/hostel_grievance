@@ -804,18 +804,16 @@ if portal_mode == "🎓 Student Resident Portal":
                             **Reason:** {l_item['leave_reason']}
                             """, unsafe_allow_html=True)
 
+                            if l_item.get('gate_pass_code') and "Approved" in l_status:
+                                render_gate_pass_card(l_item)
+                            elif l_item.get('gate_pass_code'):
+                                st.success(f"🎫 **GATE PASS CODE:** `{l_item['gate_pass_code']}`")
+
                             if l_by_id:
-                                # Full detail only when the exact Leave Ticket ID was supplied.
-                                if l_item.get('gate_pass_code') and "Approved" in l_status:
-                                    render_gate_pass_card(l_item)
-                                elif l_item.get('gate_pass_code'):
-                                    st.success(f"🎫 **GATE PASS CODE:** `{l_item['gate_pass_code']}`")
                                 st.markdown(f"**Student Contact:** {l_item['phone_number']} | **Parent Emergency Contact:** {l_item['parent_phone']}")
                             else:
-                                # Room + name is guessable, so withhold the gate pass and mask contacts.
-                                if l_item.get('gate_pass_code'):
-                                    st.info("🎫 A Gate Pass has been issued. For your security, retrieve the code using the **Leave Ticket ID** search above.")
                                 st.markdown(f"**Student Contact:** {mask_phone(l_item['phone_number'])} | **Parent Emergency Contact:** {mask_phone(l_item['parent_phone'])}")
+
                             st.caption(f"Warden Notes: {l_item.get('warden_remarks') or 'Awaiting warden authorization'} | Submitted: {l_item['date_submitted']}")
                 else:
                     st.warning("No matching leave application records found.")
@@ -1223,9 +1221,6 @@ else:
                             st.markdown(f"**Destination:** {sel_leave['destination']}")
                             st.markdown(f"**Leave Dates:** `{sel_leave['from_date']}` to `{sel_leave['to_date']}`")
                             st.markdown(f"**Reason:** {sel_leave['leave_reason']}")
-
-                        if sel_leave.get('gate_pass_code') and "Approved" in (sel_leave.get('status') or ""):
-                            render_gate_pass_card(sel_leave)
 
                         st.markdown("---")
                         with st.form(f"leave_action_form_{sel_lid}", enter_to_submit=False):
