@@ -192,11 +192,74 @@ import qr_gen
 assert qr_gen.qr_svg("GP-2026-VERIFY1").startswith("<svg")
 print("  [OK] Gate pass code lookup + offline QR generation.")
 
+# Step 6: Round-3 bug fixes + new features
+print("\n[Step 6] Verifying Round-3 fixes & features (audit, escalation, mess, visitor, email)...")
+
+# rating overwrite guard (A3)
+database.update_grievance(ca, "Resolved", "done", "StaffA")
+database.submit_grievance_feedback(ca, 5, "great")
+database.submit_grievance_feedback(ca, 1, "override attempt")
+assert database.get_grievance_by_id(ca)["rating"] == 5
+print("  [OK] A3 rating overwrite guard.")
+
+# image magic-byte validation (A10)
+try:
+    database.upload_photo(b"totally not an image", "x.png"); raise AssertionError("should reject")
+except database.DatabaseError:
+    pass
+print("  [OK] A10 image magic-byte validation.")
+
+# audit + escalation (B1, B2)
+esc_target = database.create_grievance("Stale", "Z-1", "Wi-Fi", "down", block_name="BH-3", priority="Normal")
+with database.get_db() as _c:
+    _c.execute("UPDATE Grievances SET date_submitted=? WHERE grievance_id=?", ("2020-01-01 00:00:00", esc_target)); _c.commit()
+assert any(e["grievance_id"] == esc_target for e in database.auto_escalate_priorities())
+assert database.get_audit_log(action_filter="AUTO_ESCALATE")
+print("  [OK] B1/B2 audit log + priority escalation.")
+
+# staff perf + trends (B3, B4)
+assert any(s["staff"] == "StaffA" for s in database.get_staff_performance())
+assert len(database.get_monthly_trends()) >= 1
+print("  [OK] B3/B4 staff performance + monthly trends.")
+
+# return + quota (B5, B6)
+database.mark_student_returned(lv_id)
+assert database.get_leave_application_by_id(lv_id)["returned_at"]
+assert database.get_leave_days_used("B-204", "Test") >= 0
+print("  [OK] B5/B6 return check-in + leave quota.")
+
+# lost & found expiry (B7)
+oi = database.create_lost_found_item("Old", "Lost", "Other", "Lib", "x", "B-1")
+with database.get_db() as _c:
+    _c.execute("UPDATE LostAndFound SET date_posted=? WHERE item_id=?", ("2020-01-01 00:00:00", oi)); _c.commit()
+database.cleanup_old_lost_found(30)
+assert all(i["item_id"] != oi for i in database.get_all_lost_found(status_filter="Open"))
+print("  [OK] B7 Lost & Found auto-expiry.")
+
+# mess + menu (B9)
+database.create_mess_feedback("Dinner", 2, "cold and bland", "B-1")
+assert database.get_mess_analytics()["total"] >= 1
+database.set_mess_menu("2026-08-25", "Idli", "Rajma Rice", "Chapati")
+assert database.get_mess_menu("2026-08-25")["dinner"] == "Chapati"
+print("  [OK] B9 mess feedback + menu.")
+
+# visitor (B10)
+vpid = database.create_visitor_pass("VerifyGuest", "Aadhaar", "1", "Host", "H-1", "BH-1", "Meet", "2026-08-26")
+database.update_visitor_status(vpid, "Checked In")
+assert database.get_visitor_pass_by_id(vpid)["entry_time"]
+assert database.get_visitor_passes_by_name("Verify")
+print("  [OK] B10 visitor passes.")
+
+# email no-op (B11)
+assert database.send_notification_email("a@b.com", "s", "b") is False
+print("  [OK] B11 email notification (unconfigured no-op).")
+
 # Clean up test rows
 database.delete_grievance(g_id_1)
 database.delete_grievance(g_id_2)
 database.delete_grievance(ca)
 database.delete_grievance(cb)
+database.delete_grievance(esc_target)
 database.delete_notice(n_id)
 database.delete_notice(n_id_timed)
 database.delete_leave_application(lv_id)
