@@ -11,6 +11,11 @@ import qr_gen
 from database import DatabaseError
 
 
+def esc(value):
+    """HTML-escape any DB-sourced value before injecting it into unsafe_allow_html markup."""
+    return html.escape(str(value if value is not None else ""))
+
+
 # ---- Small helpers ----
 def canonical_priority(p):
     """Normalize a display priority string to a clean stored value."""
@@ -50,7 +55,7 @@ def paginate(items, key, page_size=25):
 
 
 def render_gate_pass_card(rec):
-    """Render an ID-style digital gate pass card with an embedded scannable QR."""
+    """Render an ID-style digital gate pass card with an embedded scannable QR SVG."""
     gp = rec.get("gate_pass_code", "")
     payload = (
         f"HOSTEL GATE PASS|{gp}|L-{rec.get('leave_id')}|{rec.get('student_name','')}|"
@@ -65,12 +70,12 @@ def render_gate_pass_card(rec):
   </div>
   <div style="display:flex;gap:16px;padding:18px;align-items:center;">
     <div style="flex:1;min-width:0;color:var(--text);font-size:14px;line-height:1.7;">
-      <div><b>{rec.get('student_name','')}</b></div>
-      <div>Block/Room: <b>{rec.get('block_name','')} · {rec.get('room_number','')}</b></div>
-      <div>Valid: <b>{rec.get('from_date','')} → {rec.get('to_date','')}</b></div>
-      <div>Destination: {rec.get('destination','')}</div>
-      <div>Warden sign-off: {rec.get('warden_remarks') or 'Approved'}</div>
-      <div style="margin-top:6px;font-family:var(--mono);background:var(--accent-soft);color:var(--accent-dark);display:inline-block;padding:3px 10px;border-radius:8px;">{gp}</div>
+      <div><b>{esc(rec.get('student_name',''))}</b></div>
+      <div>Block/Room: <b>{esc(rec.get('block_name',''))} · {esc(rec.get('room_number',''))}</b></div>
+      <div>Valid: <b>{esc(rec.get('from_date',''))} → {esc(rec.get('to_date',''))}</b></div>
+      <div>Destination: {esc(rec.get('destination',''))}</div>
+      <div>Warden sign-off: {esc(rec.get('warden_remarks') or 'Approved')}</div>
+      <div style="margin-top:6px;font-family:var(--mono);background:var(--accent-soft);color:var(--accent-dark);display:inline-block;padding:3px 10px;border-radius:8px;">{esc(gp)}</div>
     </div>
     <div style="width:132px;height:132px;flex:none;background:#fff;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;">
       <img src="{qr_uri}" width="120" height="120" style="display:block;" alt="Gate Pass QR" />
@@ -82,8 +87,6 @@ def render_gate_pass_card(rec):
 </div>
 """
     st.markdown(card, unsafe_allow_html=True)
-
-
 
 # Page Configuration
 st.set_page_config(
@@ -405,7 +408,7 @@ database.init_db()
 latest_notices = database.get_all_notices()
 if latest_notices:
     top_n = latest_notices[0]
-    ticker_text = f"📢 [{top_n['category']}] {top_n['title']} (Target: {top_n['target_block']}) &nbsp;•&nbsp; Emergency Desk: <b>Ext 104</b>"
+    ticker_text = f"📢 [{esc(top_n['category'])}] {esc(top_n['title'])} (Target: {esc(top_n['target_block'])}) &nbsp;•&nbsp; Emergency Desk: <b>Ext 104</b>"
 else:
     ticker_text = "📢 Block Maintenance Active &nbsp;•&nbsp; Warden Office: <b>Ext 101</b> &nbsp;•&nbsp; Medical Room: <b>Ext 108</b>"
 
@@ -459,21 +462,75 @@ with st.sidebar.expander("🔐 Gate Security Verifier"):
     st.caption("For gate officers — verify a Gate Pass Code instantly.")
     verify_code = st.text_input("Gate Pass Code", placeholder="e.g. GP-2026-7X9K2M", key="gate_verify_code")
     if st.button("✅ Verify Pass", use_container_width=True, key="gate_verify_btn"):
+        rec = database.get_leave_by_gate_pass_code(verify_code.strip()) if verify_code.strip() else None
+        if rec and "Approved" in (rec.get("status") or ""):
+            st.session_state["verified_leave"] = rec.get("leave_id")
+        else:
+            st.session_state.pop("verified_leave", None)
         if not verify_code.strip():
             st.warning("Enter a gate pass code.")
-        else:
-            rec = database.get_leave_by_gate_pass_code(verify_code.strip())
-            if rec and "Approved" in (rec.get("status") or ""):
-                st.success("✅ VALID PASS")
-                st.markdown(
-                    f"**{rec['student_name']}** — {rec['block_name']} Room {rec['room_number']}  \n"
-                    f"Valid **{rec['from_date']} → {rec['to_date']}**  \n"
-                    f"Destination: {rec['destination']}"
-                )
-            elif rec:
-                st.error(f"⛔ NOT VALID — status is '{rec.get('status')}'.")
+        elif not rec:
+            st.error("⛔ INVALID — no approved pass matches that code.")
+        elif "Approved" not in (rec.get("status") or ""):
+            st.error(f"⛔ NOT VALID — status is '{rec.get('status')}'.")
+
+    # Persisted result + return check-in (survives the rerun triggered by the button)
+    vlid = st.session_state.get("verified_leave")
+    if vlid:
+        rec = database.get_leave_application_by_id(vlid)
+        if rec:
+            returned = bool(rec.get("returned_at"))
+            st.success("✅ VALID PASS" + (" · 🔁 Returned" if returned else ""))
+            st.markdown(
+                f"**{esc(rec['student_name'])}** — {esc(rec['block_name'])} Room {esc(rec['room_number'])}  \n"
+                f"Valid **{esc(rec['from_date'])} → {esc(rec['to_date'])}**  \n"
+                f"Destination: {esc(rec['destination'])}"
+            )
+            if returned:
+                st.caption(f"Returned at {rec['returned_at']}")
             else:
-                st.error("⛔ INVALID — no approved pass matches that code.")
+                if st.button("🔁 Mark as Returned", use_container_width=True, key="mark_returned_btn"):
+                    try:
+                        database.mark_student_returned(vlid)
+                        database.log_action("RETURN", "LeaveApplication", vlid,
+                                            f"{rec['student_name']} checked back in", actor="Gate")
+                        st.success("Return recorded.")
+                        st.rerun()
+                    except DatabaseError as e:
+                        st.error(f"❌ {e}")
+
+with st.sidebar.expander("👤 Visitor Pass Verifier"):
+    st.caption("Verify a visitor by name or pass ID.")
+    vv_query = st.text_input("Visitor name or Pass ID", placeholder="e.g. Sharma or V-3", key="visitor_verify_q")
+    if st.button("🔍 Look Up Visitor", use_container_width=True, key="visitor_verify_btn"):
+        q = vv_query.strip()
+        found = []
+        if q:
+            digits = q.replace("#", "").replace("V-", "").replace("v-", "")
+            if digits.isdigit():
+                one = database.get_visitor_pass_by_id(int(digits))
+                found = [one] if one else []
+            else:
+                found = database.get_visitor_passes_by_name(q)
+        if not found:
+            st.error("⛔ No visitor pass found.")
+        for rec in found[:5]:
+            st.markdown(
+                f"**{esc(rec['visitor_name'])}** ({esc(rec.get('visitor_id_type',''))})  \n"
+                f"Host: {esc(rec['host_student'])} · {esc(rec['host_block'])} {esc(rec['host_room'])}  \n"
+                f"Visit: {esc(rec['visit_date'])} · Status: `{esc(rec['status'])}`"
+            )
+            vc_in, vc_out = st.columns(2)
+            if rec.get("status") != "Checked In" and not rec.get("exit_time"):
+                if vc_in.button("➡️ Check In", key=f"vin_{rec['pass_id']}", use_container_width=True):
+                    database.update_visitor_status(rec["pass_id"], "Checked In")
+                    database.log_action("VISITOR", "VisitorPass", rec["pass_id"], f"{rec['visitor_name']} checked in", actor="Gate")
+                    st.rerun()
+            if rec.get("status") == "Checked In":
+                if vc_out.button("⬅️ Check Out", key=f"vout_{rec['pass_id']}", use_container_width=True):
+                    database.update_visitor_status(rec["pass_id"], "Checked Out")
+                    database.log_action("VISITOR", "VisitorPass", rec["pass_id"], f"{rec['visitor_name']} checked out", actor="Gate")
+                    st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📞 Emergency Desk")
@@ -491,11 +548,13 @@ st.sidebar.info("""
 if portal_mode == "🎓 Student Resident Portal":
     st.header("🎓 Student Resident Desk")
 
-    tab_submit, tab_track, tab_leave, tab_lostfound, tab_notices = st.tabs([
+    tab_submit, tab_track, tab_leave, tab_lostfound, tab_mess, tab_visitor, tab_notices = st.tabs([
         "📝 Register Complaint",
         "🔍 Track Status",
         "🌴 Leave & Gate Pass",
         "🎒 Lost & Found Desk",
+        "🍽️ Mess Feedback",
+        "👤 Visitor Pass",
         "📢 Campus Notices"
     ])
 
@@ -544,6 +603,7 @@ if portal_mode == "🎓 Student Resident Portal":
 
             description = st.text_area("Issue Description *", placeholder="Describe the problem in detail (location, behavior, urgency)...")
             suggestion = st.text_area("Suggestion / Recommended Solution (Optional)", placeholder="Any suggestions for maintenance team?")
+            student_email = st.text_input("Email for status updates (optional)", placeholder="you@example.com")
             photo_file = st.file_uploader("Attach a Photo (Optional)", type=["png", "jpg", "jpeg"])
 
             submitted = st.form_submit_button("🚀 Submit Complaint", type="primary", use_container_width=True)
@@ -557,6 +617,15 @@ if portal_mode == "🎓 Student Resident Portal":
                     st.error("⚠️ Photo is too large. Please upload an image under 5 MB.")
                 else:
                     clean_block = block_full.split(" (")[0] if " (" in block_full else block_full
+                    clean_cat = canonical_category(category)
+
+                    # Duplicate nudge: warn if an open ticket already exists for this room+category.
+                    existing = database.get_grievances_by_room_and_name(room_number.strip(), student_name.strip())
+                    dup = [g for g in existing
+                           if (g.get("category") == clean_cat and (g.get("status") or "") in ("Pending", "In Progress"))]
+                    if dup:
+                        st.info(f"ℹ️ Heads up: you already have an open **{clean_cat}** ticket (#{dup[0]['grievance_id']}). "
+                                "Submitting anyway will create a separate ticket.")
 
                     try:
                         photo_path = ""
@@ -566,12 +635,13 @@ if portal_mode == "🎓 Student Resident Portal":
                         gid = database.create_grievance(
                             name=student_name.strip(),
                             room=room_number.strip(),
-                            category=canonical_category(category),
+                            category=clean_cat,
                             description=description.strip(),
                             block_name=clean_block,
                             priority=canonical_priority(priority),
                             suggestion=suggestion.strip(),
-                            photo_path=photo_path
+                            photo_path=photo_path,
+                            student_email=student_email.strip(),
                         )
                         st.balloons()
                         st.success(f"🎉 **Request Submitted Successfully!**\n\nYour Grievance ID is **#{gid}**. You can track its status under the **Track Status** tab.")
@@ -642,8 +712,8 @@ if portal_mode == "🎓 Student Resident Portal":
 
                     with st.expander(f"🎫 Ticket #{item['grievance_id']} - {item['category']} ({item['block_name']} Room {item['room_number']})", expanded=True):
                         st.markdown(f"""
-                        **Student Name:** {item['student_name']}  |  **Submitted:** {item['date_submitted']}
-                        **Status:** <span class="badge {badge_class}">{st_val}</span>  |  **Priority:** {item['priority']}
+                        **Student Name:** {esc(item['student_name'])}  |  **Submitted:** {esc(item['date_submitted'])}
+                        **Status:** <span class="badge {badge_class}">{esc(st_val)}</span>  |  **Priority:** {esc(item['priority'])}
                         """, unsafe_allow_html=True)
 
                         st.markdown(f"**Issue Description:**\n>{item['description']}")
@@ -708,6 +778,7 @@ if portal_mode == "🎓 Student Resident Portal":
                     l_teacher = st.text_input("Granting Teacher / Faculty Approval Name *", placeholder="e.g. Prof. R.K. Verma (HOD / Mentor)", key="leave_teacher")
                     l_destination = st.text_input("Outstation Destination City / Address *", placeholder="e.g. New Delhi / Home", key="leave_dest")
                     l_reason = st.selectbox("Reason for Leave *", ["🏡 Home Visit", "🏥 Medical / Emergency", "🎓 Academic Conference / Exam", "💼 Personal / Family Event", "🚌 Official College Tour"])
+                    l_email = st.text_input("Email for status updates (optional)", placeholder="you@example.com", key="leave_email")
 
                 l_date_c1, l_date_c2 = st.columns(2)
                 with l_date_c1:
@@ -721,10 +792,21 @@ if portal_mode == "🎓 Student Resident Portal":
                         st.error("⚠️ Please fill in all required fields including Granting Teacher Name and Parent Phone.")
                     elif to_d < from_d:
                         st.error("❌ Return Date cannot be before Departure Date.")
+                    elif (to_d - from_d).days > 30:
+                        st.error("❌ A single leave cannot exceed 30 days. Please split longer absences into separate requests.")
                     else:
                         clean_block = l_block_full.split(" (")[0] if " (" in l_block_full else l_block_full
                         from_str = from_d.strftime("%Y-%m-%d")
                         to_str = to_d.strftime("%Y-%m-%d")
+
+                        # Leave quota check (B6) — informational, does not block.
+                        this_days = (to_d - from_d).days + 1
+                        used = database.get_leave_days_used(l_room.strip(), l_student_name.strip())
+                        if used + this_days > 30:
+                            st.warning(f"⚠️ Quota note: you've already used **{used}** approved leave day(s) this year. "
+                                       f"This request (**{this_days}** day(s)) would bring the total to **{used + this_days}**, over the 30-day guideline.")
+                        else:
+                            st.caption(f"Leave quota this year: {used} day(s) used · {this_days} day(s) requested.")
 
                         try:
                             lid = database.create_leave_application(
@@ -737,7 +819,8 @@ if portal_mode == "🎓 Student Resident Portal":
                                 destination=l_destination.strip(),
                                 from_date=from_str,
                                 to_date=to_str,
-                                teacher_name=l_teacher.strip()
+                                teacher_name=l_teacher.strip(),
+                                student_email=l_email.strip(),
                             )
                             st.balloons()
                             st.success(f"🎉 **Leave Application Submitted!**\n\nYour Leave Ticket ID is **#L-{lid}**. Keep this ID safe — you'll need it to retrieve your Gate Pass under the **Track Leave Application** tab.")
@@ -800,22 +883,24 @@ if portal_mode == "🎓 Student Resident Portal":
 
                         with st.expander(f"🌴 Leave Application #L-{l_item['leave_id']} - {l_item['student_name']} ({l_item['block_name']} Room {l_item['room_number']})", expanded=True):
                             st.markdown(f"""
-                            **Status:** <span class="badge {l_badge}">{l_status}</span>  |  **Granting Teacher:** `{l_item['granting_teacher']}`
-                            **Dates:** `{l_item['from_date']}` to `{l_item['to_date']}`  |  **Destination:** {l_item['destination']}
-                            **Reason:** {l_item['leave_reason']}
+                            **Status:** <span class="badge {l_badge}">{esc(l_status)}</span>  |  **Granting Teacher:** `{esc(l_item['granting_teacher'])}`
+                            **Dates:** `{esc(l_item['from_date'])}` to `{esc(l_item['to_date'])}`  |  **Destination:** {esc(l_item['destination'])}
+                            **Reason:** {esc(l_item['leave_reason'])}
                             """, unsafe_allow_html=True)
 
-                            if l_item.get('gate_pass_code') and "Approved" in l_status:
-                                render_gate_pass_card(l_item)
-                            elif l_item.get('gate_pass_code'):
-                                st.success(f"🎫 **GATE PASS CODE:** `{l_item['gate_pass_code']}`")
-
                             if l_by_id:
-                                st.markdown(f"**Student Contact:** {l_item['phone_number']} | **Parent Emergency Contact:** {l_item['parent_phone']}")
+                                # Full pass only when the exact Leave Ticket ID was supplied.
+                                if l_item.get('gate_pass_code') and "Approved" in l_status:
+                                    render_gate_pass_card(l_item)
+                                elif l_item.get('gate_pass_code'):
+                                    st.success(f"🎫 **GATE PASS CODE:** `{l_item['gate_pass_code']}`")
                             else:
-                                st.markdown(f"**Student Contact:** {mask_phone(l_item['phone_number'])} | **Parent Emergency Contact:** {mask_phone(l_item['parent_phone'])}")
-
-                            st.caption(f"Warden Notes: {l_item.get('warden_remarks') or 'Awaiting warden authorization'} | Submitted: {l_item['date_submitted']}")
+                                # Room + name is guessable, so withhold the gate pass.
+                                if l_item.get('gate_pass_code'):
+                                    st.info("🎫 A Gate Pass has been issued. For your security, retrieve the code using the **Leave Ticket ID** search above.")
+                            # Phone numbers are ALWAYS masked in student-facing views.
+                            st.markdown(f"**Student Contact:** {mask_phone(l_item['phone_number'])} | **Parent Emergency Contact:** {mask_phone(l_item['parent_phone'])}")
+                            st.caption(f"Warden Notes: {esc(l_item.get('warden_remarks') or 'Awaiting warden authorization')} | Submitted: {esc(l_item['date_submitted'])}")
                 else:
                     st.warning("No matching leave application records found.")
 
@@ -826,6 +911,8 @@ if portal_mode == "🎓 Student Resident Portal":
 
         LF_CATEGORIES = ["Room Keys", "ID / Cards", "Electronics", "Books & Notes",
                          "Clothing", "Sports Gear", "Wallet / Money", "Other"]
+
+        database.cleanup_old_lost_found(30)  # auto-archive items older than 30 days (B7)
 
         with lf_view:
             fc1, fc2 = st.columns([1, 2])
@@ -874,6 +961,12 @@ if portal_mode == "🎓 Student Resident Portal":
                         st.error("⚠️ Photo is too large. Please upload an image under 5 MB.")
                     else:
                         try:
+                            # Match suggestion (B8): search opposing-type open items by keyword.
+                            opposite = "Found" if lf_item_type == "Lost" else "Lost"
+                            kw = " ".join(w for w in re.findall(r"[A-Za-z0-9]{3,}", lf_title) if w.lower() not in ("the", "and", "for"))
+                            matches = database.get_all_lost_found(
+                                item_type_filter=opposite, status_filter="Open", search_query=kw or lf_title.strip()
+                            )
                             photo_url = ""
                             if lf_photo is not None:
                                 photo_url = database.upload_photo(lf_photo.getbuffer(), lf_photo.name)
@@ -883,8 +976,95 @@ if portal_mode == "🎓 Student Resident Portal":
                                 contact_info=lf_contact.strip(), photo_path=photo_url,
                             )
                             st.success("✅ Posted to the Lost & Found bulletin. Thank you!")
+                            if matches:
+                                st.info(f"💡 **Possible matches found!** {len(matches)} existing **{opposite}** item(s) look related — check the Browse tab:")
+                                for m in matches[:3]:
+                                    st.markdown(f"- **{esc(m['title'])}** ({esc(m.get('location') or '—')}) — contact {esc(m.get('contact_info') or '—')}")
                         except DatabaseError as e:
                             st.error(f"❌ {e}")
+
+    # TAB: MESS / FOOD FEEDBACK
+    with tab_mess:
+        st.subheader("🍽️ Mess & Food Feedback")
+
+        today_str = datetime.date.today().strftime("%Y-%m-%d")
+        menu = database.get_mess_menu(today_str)
+        if menu and (menu.get("breakfast") or menu.get("lunch") or menu.get("dinner")):
+            st.markdown("**📋 Today's Menu**")
+            mcol1, mcol2, mcol3 = st.columns(3)
+            mcol1.info(f"🌅 **Breakfast**\n\n{menu.get('breakfast') or '—'}")
+            mcol2.info(f"☀️ **Lunch**\n\n{menu.get('lunch') or '—'}")
+            mcol3.info(f"🌙 **Dinner**\n\n{menu.get('dinner') or '—'}")
+            st.markdown("---")
+
+        with st.form("mess_feedback_form", clear_on_submit=True, enter_to_submit=False):
+            mc1, mc2 = st.columns(2)
+            with mc1:
+                meal_type = st.selectbox("Meal", ["Breakfast", "Lunch", "Snacks", "Dinner"])
+            with mc2:
+                mess_room = st.text_input("Room (optional)", placeholder="e.g. B-204")
+            mess_rating = st.slider("Rating", 1, 5, 4)
+            mess_comment = st.text_area("Comment (optional)", placeholder="How was the food today?")
+            if st.form_submit_button("🍽️ Submit Feedback", type="primary", use_container_width=True):
+                try:
+                    database.create_mess_feedback(meal_type, mess_rating, mess_comment.strip(), mess_room.strip())
+                    st.success("🙏 Thanks for your feedback!")
+                except DatabaseError as e:
+                    st.error(f"❌ {e}")
+
+        # Show today's community pulse
+        ma = database.get_mess_analytics()
+        if ma["total"]:
+            st.caption(f"Community average so far: {ma['overall_avg']} ⭐ across {ma['total']} rating(s).")
+
+    # TAB: VISITOR PASS
+    with tab_visitor:
+        st.subheader("👤 Register a Visitor Pass")
+        st.caption("Pre-register guests so the security gate can verify them on arrival.")
+
+        v_view1, v_view2 = st.tabs(["📝 Register Visitor", "🔍 Track My Visitor Pass"])
+        with v_view1:
+            with st.form("visitor_form", clear_on_submit=True, enter_to_submit=False):
+                vc1, vc2 = st.columns(2)
+                with vc1:
+                    v_name = st.text_input("Visitor Full Name *", placeholder="e.g. Mr. Sharma")
+                    v_id_type = st.selectbox("Visitor ID Type", ["Aadhaar", "Driving License", "Voter ID", "Passport", "Other"])
+                    v_id_num = st.text_input("Visitor ID Number *", placeholder="ID on record")
+                    v_purpose = st.text_input("Purpose of Visit *", placeholder="e.g. Parent visit, document drop")
+                with vc2:
+                    v_host = st.text_input("Host Student Name *", placeholder="Your name")
+                    v_block = st.selectbox("Host Block *", ["BH-1", "BH-2", "BH-3", "GH-1", "GH-2", "IH-1"], key="v_block")
+                    v_room = st.text_input("Host Room *", placeholder="e.g. B-204")
+                    v_date = st.date_input("Visit Date *", datetime.date.today())
+                if st.form_submit_button("👤 Register Visitor Pass", type="primary", use_container_width=True):
+                    if not v_name.strip() or not v_id_num.strip() or not v_purpose.strip() or not v_host.strip() or not v_room.strip():
+                        st.error("⚠️ Please fill all required fields.")
+                    else:
+                        try:
+                            vid = database.create_visitor_pass(
+                                v_name.strip(), v_id_type, v_id_num.strip(), v_host.strip(),
+                                v_room.strip(), v_block, v_purpose.strip(), v_date.strftime("%Y-%m-%d"),
+                            )
+                            st.balloons()
+                            st.success(f"✅ Visitor pass registered. **Pass ID: #V-{vid}**. Share the visitor's name or this ID with the gate.")
+                        except DatabaseError as e:
+                            st.error(f"❌ {e}")
+        with v_view2:
+            vt_id = st.text_input("Enter Visitor Pass ID", placeholder="e.g. 1 or V-1", key="v_track_id")
+            if st.button("🔍 Look Up Pass", key="v_track_btn"):
+                try:
+                    pid = int(vt_id.strip().replace("#", "").replace("V-", "").replace("v-", ""))
+                    rec = database.get_visitor_pass_by_id(pid)
+                    if rec:
+                        st.markdown(f"**Visitor:** {esc(rec['visitor_name'])} · **Status:** `{esc(rec['status'])}`")
+                        st.markdown(f"**Host:** {esc(rec['host_student'])} ({esc(rec['host_block'])} Room {esc(rec['host_room'])})")
+                        st.markdown(f"**Visit Date:** {esc(rec['visit_date'])} · **Purpose:** {esc(rec['purpose'])}")
+                        if rec.get("entry_time"):
+                            st.caption(f"Entry: {rec['entry_time']}  |  Exit: {rec.get('exit_time') or '—'}")
+                    else:
+                        st.warning("No visitor pass found with that ID.")
+                except ValueError:
+                    st.error("Please enter a valid numeric Pass ID.")
 
     # TAB 4: CAMPUS NOTICES
     with tab_notices:
@@ -895,13 +1075,13 @@ if portal_mode == "🎓 Student Resident Portal":
 
         if notices:
             for n in notices:
-                expiry_str = f"⏳ Active until: {html.escape(str(n['expires_at']))}" if n.get('expires_at') else "📌 Permanent Notice"
+                expiry_str = f"⏳ Active until: {esc(n['expires_at'])}" if n.get('expires_at') else "📌 Permanent Notice"
                 with st.container():
                     card_html = (
                         '<div class="card-box">'
-                        f'<h4 class="card-title">📢 {html.escape(n["title"])}</h4>'
-                        f'<p class="card-meta">Target: {html.escape(n["target_block"])} &nbsp;|&nbsp; {html.escape(n["category"])} &nbsp;|&nbsp; {html.escape(str(n["date_posted"]))} &nbsp;|&nbsp; {expiry_str} &nbsp;|&nbsp; {html.escape(n.get("posted_by", "Warden Office"))}</p>'
-                        f'<p class="card-body">{html.escape(n["content"])}</p>'
+                        f'<h4 class="card-title">📢 {esc(n["title"])}</h4>'
+                        f'<p class="card-meta">Target: {esc(n["target_block"])} &nbsp;|&nbsp; {esc(n["category"])} &nbsp;|&nbsp; {esc(n["date_posted"])} &nbsp;|&nbsp; {expiry_str} &nbsp;|&nbsp; {esc(n.get("posted_by", "Warden Office"))}</p>'
+                        f'<p class="card-body">{esc(n["content"])}</p>'
                         '</div>'
                     )
                     st.markdown(card_html, unsafe_allow_html=True)
@@ -939,22 +1119,32 @@ else:
             st.session_state["admin_authenticated"] = False
             st.rerun()
 
+        # --- PRIORITY AUTO-ESCALATION (runs on dashboard load) ---
+        escalations = database.auto_escalate_priorities()
+        if escalations:
+            st.warning(f"⬆️ **Auto-escalation:** {len(escalations)} stale ticket(s) were bumped up "
+                       + ", ".join(f"#{e['grievance_id']}→{e['new_priority']}" for e in escalations[:8])
+                       + ("…" if len(escalations) > 8 else ""))
+
         # --- CLUSTER OUTAGE ALERT BANNER ---
         cluster_alerts = database.detect_cluster_outages()
         if cluster_alerts:
             lines = [
-                f"**{a['count']}× {a['category']}** in **{a['block']}** "
+                f"**{a['room_count']} rooms · {a['count']} tickets — {a['category']}** in **{a['block']}** "
                 f"(tickets: {', '.join('#' + str(i) for i in a['ticket_ids'])})"
                 for a in cluster_alerts
             ]
-            st.error("⚠️ **Cluster Outage Alert** — repeated unresolved issues detected:\n\n"
+            st.error("⚠️ **Cluster Outage Alert** — same issue across multiple rooms:\n\n"
                      + "\n\n".join(lines))
 
-        admin_tab0, admin_tab1, admin_tab2, admin_tab_lf, admin_tab3 = st.tabs([
+        admin_tab0, admin_tab1, admin_tab2, admin_tab_lf, admin_tab_mess, admin_tab_visitor, admin_tab_audit, admin_tab3 = st.tabs([
             "📊 Operations & SLA Analytics",
             "📋 Dispatch & Grievance Operations",
             "🌴 Student Leave & Gate Pass Roster",
             "🎒 Lost & Found Inventory",
+            "🍽️ Mess Feedback",
+            "👤 Visitor Log",
+            "📋 Audit Trail",
             "📢 Notice Manager",
         ])
 
@@ -974,29 +1164,28 @@ else:
             st.markdown("---")
             st.markdown("#### ⏱️ SLA Aging Monitor (open tickets)")
             sc1, sc2 = st.columns(2)
-            sc1.metric("Overdue > 24h", a["overdue_24h"])
-            sc2.metric("Overdue > 48h", a["overdue_48h"])
+            sc1.metric("In warning band (24–48h) ⚠️", a["overdue_24_48h"])
+            sc2.metric("SLA breached (>48h) 🔴", a["overdue_48h"])
 
-            # Overdue detail table
+            # Overdue detail table — targeted query (A5), no full scan.
             now = datetime.datetime.now()
             overdue_rows = []
-            for g in database.get_all_grievances():
-                if (g.get("status") or "") in ("Pending", "In Progress"):
-                    try:
-                        dt = datetime.datetime.strptime((g.get("date_submitted") or "").strip()[:19], "%Y-%m-%d %H:%M:%S")
-                    except ValueError:
-                        continue
-                    age_h = (now - dt).total_seconds() / 3600.0
-                    if age_h > 24:
-                        overdue_rows.append({
-                            "ID": g.get("grievance_id"),
-                            "Block": g.get("block_name"),
-                            "Room": g.get("room_number"),
-                            "Category": g.get("category"),
-                            "Priority": g.get("priority"),
-                            "Age (h)": round(age_h, 1),
-                            "Urgency": "🔴 >48h" if age_h > 48 else "🟠 >24h",
-                        })
+            for g in database.get_overdue_grievances(cutoff_hours=24):
+                dt = None
+                try:
+                    dt = datetime.datetime.strptime((g.get("date_submitted") or "").strip(), "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    continue
+                age_h = (now - dt).total_seconds() / 3600.0
+                overdue_rows.append({
+                    "ID": g.get("grievance_id"),
+                    "Block": g.get("block_name"),
+                    "Room": g.get("room_number"),
+                    "Category": g.get("category"),
+                    "Priority": g.get("priority"),
+                    "Age (h)": round(age_h, 1),
+                    "Urgency": "🔴 Breached >48h" if age_h > 48 else "🟠 Warning 24–48h",
+                })
             if overdue_rows:
                 overdue_rows.sort(key=lambda r: r["Age (h)"], reverse=True)
                 st.dataframe(pd.DataFrame(overdue_rows), use_container_width=True, hide_index=True)
@@ -1026,6 +1215,35 @@ else:
                         {"Count": list(a["by_priority"].values())},
                         index=list(a["by_priority"].keys()),
                     ))
+
+            # --- MONTH-OVER-MONTH TRENDS (B4) ---
+            st.markdown("---")
+            st.markdown("#### 📈 Month-over-Month Trends")
+            trends = database.get_monthly_trends()
+            if trends:
+                tdf = pd.DataFrame(trends).set_index("month")
+                tc1, tc2 = st.columns(2)
+                with tc1:
+                    st.markdown("**Complaint Volume**")
+                    st.line_chart(tdf[["volume"]])
+                with tc2:
+                    st.markdown("**Resolution Rate (%)**")
+                    st.line_chart(tdf[["resolution_rate"]])
+            else:
+                st.caption("Not enough data yet for trend charts.")
+
+            # --- STAFF PERFORMANCE (B3) ---
+            st.markdown("---")
+            st.markdown("#### 👷 Staff Performance (resolved tickets)")
+            staff = database.get_staff_performance()
+            if staff:
+                sdf = pd.DataFrame(staff).rename(columns={
+                    "staff": "Staff", "resolved": "Resolved",
+                    "avg_rating": "Avg Rating ⭐", "avg_resolution_h": "Avg Resolution (h)",
+                })
+                st.dataframe(sdf, use_container_width=True, hide_index=True)
+            else:
+                st.caption("No resolved-and-assigned tickets yet.")
 
         # TAB 1: GRIEVANCE DISPATCH OPERATIONS
         with admin_tab1:
@@ -1133,6 +1351,16 @@ else:
                             if save_btn:
                                 try:
                                     database.update_grievance(selected_id, new_status, new_remarks, assigned_staff=new_staff.strip())
+                                    database.log_action("UPDATE", "Grievance", selected_id,
+                                                        f"Status → {new_status}" + (f", staff {new_staff.strip()}" if new_staff.strip() else ""))
+                                    if new_status != selected_item.get('status') and selected_item.get('student_email'):
+                                        database.send_notification_email(
+                                            selected_item['student_email'],
+                                            f"[Hostel] Grievance #{selected_id} is now {new_status}",
+                                            f"Hi {selected_item.get('student_name','')},\n\nYour grievance #{selected_id} "
+                                            f"({selected_item.get('category','')}) status is now: {new_status}.\n"
+                                            f"Warden remarks: {new_remarks or '—'}\n\n— Hostel Warden Office",
+                                        )
                                     st.success(f"Grievance #{selected_id} updated successfully!")
                                     st.rerun()
                                 except DatabaseError as e:
@@ -1144,6 +1372,7 @@ else:
                                 else:
                                     try:
                                         database.delete_grievance(selected_id)
+                                        database.log_action("DELETE", "Grievance", selected_id, "Ticket deleted")
                                         st.warning(f"Grievance #{selected_id} deleted!")
                                         st.rerun()
                                     except DatabaseError as e:
@@ -1179,10 +1408,31 @@ else:
             all_leaves = database.get_all_leave_applications(status_filter=l_filter_status, block_filter=l_filter_block, search_query=l_search_w)
 
             if all_leaves:
+                # Overdue-return flag (B5): approved, return date passed, not yet returned.
+                _today = datetime.date.today()
+
+                def _return_flag(rec):
+                    if "Approved" not in (rec.get("status") or "") or rec.get("returned_at"):
+                        return "✅ Returned" if rec.get("returned_at") else "—"
+                    try:
+                        td = datetime.datetime.strptime(rec.get("to_date", ""), "%Y-%m-%d").date()
+                    except ValueError:
+                        return "—"
+                    return "⚠️ Overdue Return" if td < _today else "🟢 On leave"
+
+                overdue_returns = 0
+                for rec in all_leaves:
+                    rec["_return"] = _return_flag(rec)
+                    if rec["_return"] == "⚠️ Overdue Return":
+                        overdue_returns += 1
+                if overdue_returns:
+                    st.warning(f"⚠️ **{overdue_returns}** student(s) are past their return date without checking in.")
+
                 l_df = pd.DataFrame(all_leaves)
                 st.markdown(f"Displaying **{len(l_df)}** leave application(s):")
 
-                l_display_cols = ["leave_id", "block_name", "room_number", "student_name", "granting_teacher", "from_date", "to_date", "destination", "status", "gate_pass_code"]
+                l_display_cols = ["leave_id", "block_name", "room_number", "student_name", "granting_teacher", "from_date", "to_date", "destination", "status", "_return", "gate_pass_code"]
+                l_display_cols = [c for c in l_display_cols if c in l_df.columns]
                 st.dataframe(
                     l_df[l_display_cols],
                     use_container_width=True,
@@ -1197,6 +1447,7 @@ else:
                         "to_date": "To",
                         "destination": "Destination",
                         "status": "Approval Status",
+                        "_return": "Return",
                         "gate_pass_code": "Gate Pass Code"
                     }
                 )
@@ -1223,6 +1474,9 @@ else:
                             st.markdown(f"**Leave Dates:** `{sel_leave['from_date']}` to `{sel_leave['to_date']}`")
                             st.markdown(f"**Reason:** {sel_leave['leave_reason']}")
 
+                        if sel_leave.get('gate_pass_code') and "Approved" in (sel_leave.get('status') or ""):
+                            render_gate_pass_card(sel_leave)
+
                         st.markdown("---")
                         with st.form(f"leave_action_form_{sel_lid}", enter_to_submit=False):
                             la_col1, la_col2 = st.columns(2)
@@ -1230,8 +1484,9 @@ else:
                                 new_l_status = st.selectbox("Action / Approval", ["Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"], index=["Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"].index(sel_leave['status']) if sel_leave['status'] in ["Pending Warden Approval", "Approved / Gate Pass Issued", "Rejected"] else 0)
                             with la_col2:
                                 # Unguessable default so students can't derive another student's pass from the ID.
-                                default_gp = sel_leave.get('gate_pass_code') or f"GP-2026-{secrets.token_hex(3).upper()}"
-                                new_gp_code = st.text_input("Gate Pass Code", value=default_gp)
+                                # Only show an existing code; a fresh code is generated on approval (A6).
+                                existing_gp = sel_leave.get('gate_pass_code') or ""
+                                new_gp_code = st.text_input("Gate Pass Code (auto-generated on approval if left blank)", value=existing_gp)
 
                             new_w_remarks = st.text_area("Warden Remarks / Authorization Notes", value=sel_leave.get('warden_remarks', ''))
                             confirm_del_leave = st.checkbox("⚠️ Confirm I want to permanently delete this leave record", key=f"confirm_del_l_{sel_lid}")
@@ -1244,7 +1499,23 @@ else:
 
                             if save_l_btn:
                                 try:
-                                    database.update_leave_status(sel_lid, new_l_status, warden_remarks=new_w_remarks.strip(), gate_pass_code=new_gp_code.strip() if "Approved" in new_l_status else "")
+                                    # Generate a gate pass code ONLY when approving; clear it otherwise.
+                                    if "Approved" in new_l_status:
+                                        final_code = new_gp_code.strip() or f"GP-2026-{secrets.token_hex(3).upper()}"
+                                    else:
+                                        final_code = ""
+                                    database.update_leave_status(sel_lid, new_l_status, warden_remarks=new_w_remarks.strip(), gate_pass_code=final_code)
+                                    database.log_action("LEAVE_ACTION", "LeaveApplication", sel_lid,
+                                                        f"{new_l_status}" + (f" (pass {final_code})" if final_code else ""))
+                                    if sel_leave.get('student_email'):
+                                        database.send_notification_email(
+                                            sel_leave['student_email'],
+                                            f"[Hostel] Leave #L-{sel_lid}: {new_l_status}",
+                                            f"Hi {sel_leave.get('student_name','')},\n\nYour leave application #L-{sel_lid} "
+                                            f"({sel_leave.get('from_date','')} → {sel_leave.get('to_date','')}) is now: {new_l_status}."
+                                            + (f"\nGate Pass Code: {final_code}" if final_code else "")
+                                            + "\n\n— Hostel Warden Office",
+                                        )
                                     st.success(f"Leave Application #L-{sel_lid} updated successfully!")
                                     st.rerun()
                                 except DatabaseError as e:
@@ -1256,13 +1527,18 @@ else:
                                 else:
                                     try:
                                         database.delete_leave_application(sel_lid)
+                                        database.log_action("DELETE", "LeaveApplication", sel_lid, "Leave record deleted")
                                         st.warning(f"Leave Record #L-{sel_lid} deleted!")
                                         st.rerun()
                                     except DatabaseError as e:
                                         st.error(f"❌ {e}")
 
-                # Export CSV
-                l_csv_data = l_df.to_csv(index=False).encode('utf-8')
+                # Export CSV — mask phone columns before writing (A9)
+                l_csv_df = l_df.copy()
+                for _pcol in ("phone_number", "parent_phone"):
+                    if _pcol in l_csv_df.columns:
+                        l_csv_df[_pcol] = l_csv_df[_pcol].apply(mask_phone)
+                l_csv_data = l_csv_df.to_csv(index=False).encode('utf-8')
                 st.download_button(
                     "📥 Export Outstation Roster (CSV)",
                     data=l_csv_data,
@@ -1313,6 +1589,7 @@ else:
                                 if st.button("✅ Mark Claimed / Returned", key=f"lf_claim_{it['item_id']}", use_container_width=True):
                                     try:
                                         database.update_lost_found_status(it["item_id"], "Claimed / Returned")
+                                        database.log_action("LOSTFOUND", "LostAndFound", it["item_id"], f"Claimed/returned: {it['title']}")
                                         st.success("Marked as claimed / returned.")
                                         st.rerun()
                                     except DatabaseError as e:
@@ -1332,12 +1609,99 @@ else:
                                 else:
                                     try:
                                         database.delete_lost_found_item(it["item_id"])
+                                        database.log_action("DELETE", "LostAndFound", it["item_id"], f"Deleted: {it['title']}")
                                         st.warning("Item deleted.")
                                         st.rerun()
                                     except DatabaseError as e:
                                         st.error(f"❌ {e}")
             else:
                 st.info("No Lost & Found items match the current filter.")
+
+        # TAB: MESS FEEDBACK (WARDEN)
+        with admin_tab_mess:
+            st.subheader("🍽️ Mess Feedback & Menu")
+            ma = database.get_mess_analytics()
+
+            mk1, mk2 = st.columns(2)
+            mk1.metric("Overall Avg", f"{ma['overall_avg']} ⭐" if ma["total"] else "—")
+            mk2.metric("Total Ratings", ma["total"])
+
+            if ma["by_meal"]:
+                st.markdown("**Average by Meal**")
+                mdf = pd.DataFrame(ma["by_meal"])[["meal", "avg", "count"]].rename(
+                    columns={"meal": "Meal", "avg": "Avg Rating", "count": "Ratings"})
+                st.dataframe(mdf, use_container_width=True, hide_index=True)
+                st.bar_chart(pd.DataFrame({"Avg": [m["avg"] for m in ma["by_meal"]]},
+                                          index=[m["meal"] for m in ma["by_meal"]]))
+            if ma["top_complaint_keywords"]:
+                st.markdown("**Top complaint keywords** (from low ratings)")
+                st.write("  ".join(f"`{w}`×{c}" for w, c in ma["top_complaint_keywords"]))
+
+            st.markdown("---")
+            st.markdown("#### 📋 Manage Today's Menu")
+            _md = datetime.date.today().strftime("%Y-%m-%d")
+            _cur = database.get_mess_menu(_md) or {}
+            with st.form("mess_menu_form", enter_to_submit=False):
+                mm1, mm2, mm3 = st.columns(3)
+                bf = mm1.text_area("Breakfast", value=_cur.get("breakfast", ""))
+                ln = mm2.text_area("Lunch", value=_cur.get("lunch", ""))
+                dn = mm3.text_area("Dinner", value=_cur.get("dinner", ""))
+                if st.form_submit_button("💾 Save Today's Menu", type="primary"):
+                    try:
+                        database.set_mess_menu(_md, bf.strip(), ln.strip(), dn.strip())
+                        database.log_action("MENU", "MessMenu", _md, "Menu updated")
+                        st.success("Menu saved for today.")
+                        st.rerun()
+                    except DatabaseError as e:
+                        st.error(f"❌ {e}")
+
+        # TAB: VISITOR LOG (WARDEN)
+        with admin_tab_visitor:
+            st.subheader("👤 Visitor Pass Log")
+            vf1, vf2, vf3 = st.columns([1.2, 1.2, 3])
+            with vf1:
+                v_filter_status = st.selectbox("Status", ["All Statuses", "Registered", "Checked In", "Checked Out"], key="v_log_status")
+            with vf2:
+                v_filter_block = st.selectbox("Host Block", ["All Blocks", "BH-1", "BH-2", "BH-3", "GH-1", "GH-2", "IH-1"], key="v_log_block")
+            with vf3:
+                v_log_search = st.text_input("Search", placeholder="visitor, host, purpose...", key="v_log_search")
+            passes = database.get_all_visitor_passes(status_filter=v_filter_status, block_filter=v_filter_block, search_query=v_log_search)
+            if passes:
+                vdf = pd.DataFrame(passes)
+                vcols = [c for c in ["pass_id", "visitor_name", "host_student", "host_block", "host_room",
+                                     "purpose", "visit_date", "status", "entry_time", "exit_time"] if c in vdf.columns]
+                st.dataframe(vdf[vcols], use_container_width=True, hide_index=True,
+                             column_config={"pass_id": "ID", "visitor_name": "Visitor", "host_student": "Host"})
+                st.download_button("📥 Export Visitor Log (CSV)",
+                                   data=vdf[vcols].to_csv(index=False).encode("utf-8"),
+                                   file_name=f"visitor_log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                   mime="text/csv")
+            else:
+                st.info("No visitor passes match the current filter.")
+
+        # TAB: AUDIT TRAIL (WARDEN)
+        with admin_tab_audit:
+            st.subheader("📋 Admin Audit Trail")
+            au1, au2 = st.columns([1.5, 3])
+            with au1:
+                au_action = st.selectbox("Action", ["All Actions", "UPDATE", "DELETE", "LEAVE_ACTION",
+                                                    "AUTO_ESCALATE", "RETURN", "VISITOR", "MENU", "NOTICE"], key="audit_action")
+            with au2:
+                au_search = st.text_input("Search", placeholder="description, actor, entity...", key="audit_search")
+            logs = database.get_audit_log(action_filter=au_action, search_query=au_search, limit=1000)
+            if logs:
+                adf = pd.DataFrame(logs)
+                acols = [c for c in ["timestamp", "action_type", "entity_type", "entity_id", "description", "actor"] if c in adf.columns]
+                for row in paginate(logs, key="audit_pager", page_size=30):
+                    st.markdown(f"`{row.get('timestamp','')}` · **{esc(row.get('action_type',''))}** "
+                                f"{esc(row.get('entity_type',''))} #{esc(row.get('entity_id',''))} — "
+                                f"{esc(row.get('description',''))} _(by {esc(row.get('actor',''))})_")
+                st.download_button("📥 Export Audit Log (CSV)",
+                                   data=adf[acols].to_csv(index=False).encode("utf-8"),
+                                   file_name=f"audit_log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                   mime="text/csv")
+            else:
+                st.info("No audit entries yet.")
 
         # TAB 3: NOTICE MANAGER
         with admin_tab3:
@@ -1383,7 +1747,8 @@ else:
                         }
                         exp_h = duration_map.get(n_duration, 0)
                         try:
-                            database.create_notice(n_title.strip(), n_content.strip(), n_cat, n_block, n_posted_by, expiry_hours=exp_h)
+                            nid = database.create_notice(n_title.strip(), n_content.strip(), n_cat, n_block, n_posted_by, expiry_hours=exp_h)
+                            database.log_action("NOTICE", "Notice", nid, f"Published: {n_title.strip()}")
                             st.success("Notice published successfully!")
                             st.rerun()
                         except DatabaseError as e:
@@ -1405,6 +1770,7 @@ else:
                             else:
                                 try:
                                     database.delete_notice(noti['notice_id'])
+                                    database.log_action("DELETE", "Notice", noti['notice_id'], f"Deleted: {noti['title']}")
                                     st.warning("Notice deleted!")
                                     st.rerun()
                                 except DatabaseError as e:
