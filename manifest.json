@@ -1,0 +1,16 @@
+{
+  "name": "A2Z DSA Vault & Quant Engine",
+  "short_name": "DSA Vault",
+  "description": "Personal DSA Progress Tracker & Solution Vault with Integrated Global Resources & Quant HFT Engine",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%236366f1'/><path d='M30 40 L50 65 L70 40' stroke='%23ffffff' stroke-width='8' fill='none' stroke-linecap='round'/></svg>",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

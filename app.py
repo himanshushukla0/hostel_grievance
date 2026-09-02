@@ -4,6 +4,7 @@ import pandas as pd
 import datetime
 import os
 import re
+import html
 import secrets
 import database
 import qr_gen
@@ -889,18 +890,18 @@ if portal_mode == "🎓 Student Resident Portal":
     with tab_notices:
         st.subheader("📢 Official Hostel Announcements & Circulars")
 
-        block_filter = st.selectbox("Filter by Hostel Block", ["All Blocks", "BH-1", "BH-2", "BH-3", "GH-1", "GH-2", "IH-1"])
+        block_filter = st.selectbox("Filter by Hostel Block", ["All Blocks", "BH-1", "BH-2", "BH-3", "GH-1", "GH-2", "IH-1"], key="student_block_filter")
         notices = database.get_all_notices(block_filter=block_filter)
 
         if notices:
             for n in notices:
-                expiry_str = f"⏳ Active until: {n['expires_at']}" if n.get('expires_at') else "📌 Permanent Notice"
+                expiry_str = f"⏳ Active until: {html.escape(str(n['expires_at']))}" if n.get('expires_at') else "📌 Permanent Notice"
                 with st.container():
                     card_html = (
                         '<div class="card-box">'
-                        f'<h4 class="card-title">📢 {n["title"]}</h4>'
-                        f'<p class="card-meta">Target: {n["target_block"]} &nbsp;|&nbsp; {n["category"]} &nbsp;|&nbsp; {n["date_posted"]} &nbsp;|&nbsp; {expiry_str} &nbsp;|&nbsp; {n.get("posted_by", "Warden Office")}</p>'
-                        f'<p class="card-body">{n["content"]}</p>'
+                        f'<h4 class="card-title">📢 {html.escape(n["title"])}</h4>'
+                        f'<p class="card-meta">Target: {html.escape(n["target_block"])} &nbsp;|&nbsp; {html.escape(n["category"])} &nbsp;|&nbsp; {html.escape(str(n["date_posted"]))} &nbsp;|&nbsp; {expiry_str} &nbsp;|&nbsp; {html.escape(n.get("posted_by", "Warden Office"))}</p>'
+                        f'<p class="card-body">{html.escape(n["content"])}</p>'
                         '</div>'
                     )
                     st.markdown(card_html, unsafe_allow_html=True)

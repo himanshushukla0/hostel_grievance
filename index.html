@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A2Z DSA Tracker & Personal Vault</title>
+  <meta name="description" content="Personal DSA Progress Tracker & Solution Vault with Integrated Global Resources & Quant HFT Engine">
+  
+  <!-- Fonts — self-hosted (vendor/fonts) so the app renders correctly with
+       no internet connection, not just when localStorage happens to have
+       cached data. See vendor/fonts/fonts.css for provenance. -->
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+
+  <!-- FontAwesome Icons — self-hosted (vendor/fontawesome) for the same reason -->
+  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+</head>
+<body>
+  <!-- Background Glow Accents -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <!-- Main Application Container -->
+  <div class="app-container">
+    
+    <!-- Top Navbar / Header -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-logo">
+          <i class="fa-solid fa-code-merge"></i>
+        </div>
+        <div>
+          <h1 class="brand-title">A2Z DSA <span>Vault</span></h1>
+          <p class="brand-subtitle">Striver A2Z + NeetCode 150 + Blind 75 • Quant & HFT Base • Personal Solution Archive</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="globalResourcesBtn" class="btn btn-secondary global-res-btn" title="Open World-Class Learning Resources Hub (MIT, NeetCode, USACO, CSES, Abdul Bari)">
+          <i class="fa-solid fa-earth-americas" style="color: #38bdf8;"></i> <span>Global Resources</span>
+        </button>
+        <button id="calendarModalBtn" class="btn btn-secondary gcal-btn" title="Sync Study Plan to Google Calendar">
+          <i class="fa-regular fa-calendar-plus" style="color: #4285f4;"></i> <span>Google Calendar</span>
+        </button>
+        <button id="randomBtn" class="btn btn-secondary" title="Pick a random unsolved problem">
+          <i class="fa-solid fa-shuffle"></i> <span>Pick Random</span>
+        </button>
+        <button id="backupModalBtn" class="btn btn-secondary" title="Export or Import Progress">
+          <i class="fa-solid fa-database"></i> <span>Data Backup</span>
+        </button>
+        <button id="themeToggleBtn" class="btn btn-icon" title="Toggle Dark / Light Theme" aria-label="Toggle Theme">
+          <i class="fa-solid fa-moon" id="themeIcon"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Dashboard Analytics Card -->
+    <section class="dashboard-grid">
+      <!-- Total Progress Card -->
+      <div class="stat-card stat-card-main">
+        <div class="stat-main-content">
+          <div>
+            <span class="stat-label">Overall Progress</span>
+            <div class="stat-number-wrapper">
+              <span id="solvedCount" class="stat-big-number">0</span>
+              <span class="stat-total-number">/ <span id="totalProblemsCount">0</span></span>
+            </div>
+            <p id="progressPercentageText" class="stat-subtext">0% completed</p>
+          </div>
+          <div class="circular-progress-container">
+            <svg class="progress-ring" viewBox="0 0 100 100" width="100" height="100">
+              <circle class="progress-ring-bg" stroke-width="8" cx="50" cy="50" r="40" fill="transparent" />
+              <circle id="progressRingCircle" class="progress-ring-fill" stroke-width="8" cx="50" cy="50" r="40" fill="transparent" />
+            </svg>
+            <div id="ringPercentage" class="ring-label">0%</div>
+          </div>
+        </div>
+        <div class="linear-progress-bar">
+          <div id="linearProgressBarFill" class="linear-progress-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- Difficulty Breakdown Cards -->
+      <div class="stat-card stat-card-diff easy">
+        <div class="diff-header">
+          <span class="diff-pill easy-pill"><i class="fa-solid fa-circle"></i> Easy</span>
+          <span id="easyRatio" class="diff-ratio">0 / 0</span>
+        </div>
+        <div class="diff-progress-bar">
+          <div id="easyBar" class="diff-progress-fill easy-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <div class="stat-card stat-card-diff medium">
+        <div class="diff-header">
+          <span class="diff-pill medium-pill"><i class="fa-solid fa-circle"></i> Medium</span>
+          <span id="mediumRatio" class="diff-ratio">0 / 0</span>
+        </div>
+        <div class="diff-progress-bar">
+          <div id="mediumBar" class="diff-progress-fill medium-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <div class="stat-card stat-card-diff hard">
+        <div class="diff-header">
+          <span class="diff-pill hard-pill"><i class="fa-solid fa-circle"></i> Hard</span>
+          <span id="hardRatio" class="diff-ratio">0 / 0</span>
+        </div>
+        <div class="diff-progress-bar">
+          <div id="hardBar" class="diff-progress-fill hard-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- Starred / Notes Card -->
+      <div class="stat-card stat-card-notes">
+        <div class="notes-stat-item">
+          <i class="fa-solid fa-star star-icon"></i>
+          <div>
+            <span class="stat-label">Revision Bookmarks</span>
+            <div id="starredCount" class="stat-medium-number">0</div>
+          </div>
+        </div>
+        <div class="notes-stat-divider"></div>
+        <div class="notes-stat-item">
+          <i class="fa-solid fa-book-bookmark notes-icon"></i>
+          <div>
+            <span class="stat-label">Saved Solutions</span>
+            <div id="savedNotesCount" class="stat-medium-number">0</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Search & Filter Controls -->
+    <section class="controls-section">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" id="searchInput" placeholder="Search problems, topics, NeetCode patterns (Press '/' to search)...">
+        <button id="clearSearchBtn" class="clear-search-btn" title="Clear Search" style="display: none;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="filter-group">
+        <button class="filter-chip active" data-filter="all">All</button>
+        <button class="filter-chip" data-filter="unsolved">Unsolved</button>
+        <button class="filter-chip" data-filter="solved">Solved</button>
+        <button class="filter-chip" data-filter="neetcode"><i class="fa-solid fa-bolt" style="color: #22c55e;"></i> NeetCode 150</button>
+        <button class="filter-chip" data-filter="blind75"><i class="fa-solid fa-fire" style="color: #f59e0b;"></i> Blind 75</button>
+        <button class="filter-chip" data-filter="starred"><i class="fa-solid fa-star"></i> Bookmarked</button>
+        <button class="filter-chip" data-filter="notes"><i class="fa-solid fa-file-lines"></i> With Notes</button>
+        <button class="filter-chip" data-filter="corecs"><i class="fa-solid fa-microchip" style="color: #a855f7;"></i> Core CS & SQL</button>
+        <button class="filter-chip" data-filter="due" id="dueFilterChip"><i class="fa-solid fa-rotate" style="color: #ec4899;"></i> Due for Review <span id="dueBadge" class="due-badge" style="display:none;">0</span></button>
+
+        <div class="filter-divider"></div>
+
+        <button class="filter-chip diff-filter" data-diff="Easy">Easy</button>
+        <button class="filter-chip diff-filter" data-diff="Medium">Medium</button>
+        <button class="filter-chip diff-filter" data-diff="Hard">Hard</button>
+
+        <button id="expandAllBtn" class="btn-text" title="Expand / Collapse All Steps">
+          <i class="fa-solid fa-angles-down"></i> <span>Expand All</span>
+        </button>
+      </div>
+
+      <div class="pattern-filter-group">
+        <span class="pattern-filter-label"><i class="fa-solid fa-shapes"></i> Patterns:</span>
+        <div id="patternChipsContainer" class="pattern-chips">
+          <!-- Pattern tag chips rendered dynamically via app.js -->
+        </div>
+        <button id="clearPatternsBtn" class="btn-text" style="display:none;"><i class="fa-solid fa-xmark"></i> Clear</button>
+      </div>
+    </section>
+
+    <!-- Streak & Weak Areas -->
+    <section class="insights-grid">
+      <div class="stat-card streak-card">
+        <div class="streak-header">
+          <div>
+            <span class="stat-label">Study Streak</span>
+            <div class="stat-number-wrapper">
+              <span id="streakCount" class="stat-big-number">0</span>
+              <span class="stat-total-number">days</span>
+            </div>
+          </div>
+          <i class="fa-solid fa-fire streak-flame-icon"></i>
+        </div>
+        <div id="activityHeatmap" class="activity-heatmap" title="Solve activity, last ~18 weeks"></div>
+      </div>
+
+      <div class="stat-card weak-areas-card">
+        <div class="weak-areas-header">
+          <span class="stat-label"><i class="fa-solid fa-crosshairs"></i> Weakest Patterns</span>
+          <span class="weak-areas-hint">by first-attempt success rate</span>
+        </div>
+        <div id="weakAreasList" class="weak-areas-list">
+          <p class="weak-areas-empty">Log a few attempts (via a problem's Note panel) to see this fill in.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Problem Steps Accordion List -->
+    <main id="stepsContainer" class="steps-container">
+      <!-- Steps rendered dynamically via app.js -->
+    </main>
+
+    <!-- Empty State for Filters -->
+    <div id="emptyState" class="empty-state" style="display: none;">
+      <i class="fa-solid fa-magnifying-glass-chart empty-icon"></i>
+      <h3>No matching problems found</h3>
+      <p>Try adjusting your search query or reset active filters.</p>
+      <button id="resetFiltersBtn" class="btn btn-secondary mt-3">Reset All Filters</button>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>A2Z DSA Personal Tracker • Unified Striver A2Z + NeetCode 150 + Blind 75 Matrix • All fonts, icons & data self-hosted — works with zero internet connection</p>
+    </footer>
+  </div>
+
+  <!-- Global Resources Hub Modal -->
+  <div id="resourceHubModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title"><i class="fa-solid fa-earth-americas" style="color: #38bdf8;"></i> World-Class Resource Hub & Quant Library</h3>
+          <p class="modal-description">Direct access to the best algorithm visualizers, Ivy League courses, HFT problem sets, and textbooks on the global internet.</p>
+        </div>
+        <button id="closeResourceHubModalBtn" class="modal-close-btn" aria-label="Close modal">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Resource Category Selector -->
+        <div class="resource-cat-bar">
+          <button class="res-cat-chip active" data-cat="visual"><i class="fa-solid fa-bolt"></i> Visual & Fast (NeetCode)</button>
+          <button class="res-cat-chip" data-cat="hft"><i class="fa-solid fa-fire"></i> HFT & Olympiad (USACO/CSES)</button>
+          <button class="res-cat-chip" data-cat="academic"><i class="fa-solid fa-graduation-cap"></i> Ivy League (MIT/Stanford)</button>
+          <button class="res-cat-chip" data-cat="theory"><i class="fa-solid fa-chalkboard-user"></i> Core Theory (Abdul Bari)</button>
+          <button class="res-cat-chip" data-cat="quant"><i class="fa-solid fa-chart-line"></i> Quant & Algo Labs</button>
+        </div>
+
+        <!-- Resource Cards Grid -->
+        <div class="resource-cards-grid">
+          
+          <!-- Category 1: Visual & Fast -->
+          <div class="res-card" data-cat="visual">
+            <div class="res-card-header">
+              <div class="res-badge res-badge-neetcode"><i class="fa-solid fa-play"></i> NeetCode.io</div>
+              <span class="res-tag">ex-Google Staff</span>
+            </div>
+            <h4>NeetCode 150 & All LeetCode Solutions</h4>
+            <p>The global benchmark for concise, 8-12 minute visual whiteboard explanations with zero fluff.</p>
+            <div class="res-card-actions">
+              <a href="https://neetcode.io/practice" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open NeetCode.io</a>
+              <a href="https://www.youtube.com/@NeetCode" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm"><i class="fa-brands fa-youtube"></i> YouTube</a>
+            </div>
+          </div>
+
+          <div class="res-card" data-cat="visual">
+            <div class="res-card-header">
+              <div class="res-badge res-badge-fiset"><i class="fa-solid fa-cubes"></i> William Fiset</div>
+              <span class="res-tag">Visual Animations</span>
+            </div>
+            <h4>Data Structures & Graph Algorithms Visualized</h4>
+            <p>The finest animated data structure breakdowns online (Union Find, Fenwick Trees, Tarjan's SCC, Max Flow).</p>
+            <div class="res-card-actions">
+              <a href="https://github.com/williamfiset/Algorithms" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="fa-brands fa-github"></i> GitHub Code</a>
+              <a href="https://www.youtube.com/@WilliamFiset-videos" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm"><i class="fa-brands fa-youtube"></i> YouTube Channel</a>
+            </div>
+          </div>
+
+          <div class="res-card" data-cat="visual">
+            <div class="res-card-header">
+              <div class="res-badge res-badge-meta"><i class="fa-solid fa-book-bookmark"></i> Tech Interview Handbook</div>
+              <span class="res-tag">ex-Meta Staff</span>
+            </div>
+            <h4>Curated Algorithms & System Design Cheat Sheets</h4>
+            <p>Non-trivial algorithm patterns, time complexity trade-offs, and behavioral strategies curated by Yangshun Tay.</p>
+            <div class="res-card-actions">
+              <a href="https://www.techinterviewhandbook.org/grind75" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open Handbook</a>
+            </div>
+          </div>
+
+          <!-- Category 2: HFT & Olympiad -->
+          <div class="res-card" data-cat="hft">
+            <div class="res-card-header">
+              <div class="res-badge res-badge-usaco"><i class="fa-solid fa-award"></i> USACO Guide</div>
+              <span class="res-tag">MIT & IOI Medalists</span>
+            </div>
+            <h4>The Ultimate Competitive Programming Curriculum</h4>
+            <p>Gold-standard roadmap from Silver to Platinum covering Segment Trees, Binary Lifting, Treaps & DP optimization in modern C++.</p>
+            <div class="res-card-actions">
+              <a href="https://usaco.guide/" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open USACO Guide</a>
+            </div>
+          </div>
+
+          <div class="res-card" data-cat="hft">
+            <div class="res-card-header">
+              <div class="res-badge res-badge-cses"><i class="fa-solid fa-code"></i> CSES Problem Set</div>
+              <span class="res-tag">Helsinki University</span>
+            </div>
+            <h4>300 Pure Algorithmic Benchmark Tasks</h4>
+            <p>The definitive test suite practiced by ICPC World Finalists and High-Frequency Trading candidates worldwide.</p>
+            <div class="res-card-actions">
+              <a href="https://cses.fi/problemset/" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open CSES</a>
+            </div>
+          </div>
+
+          <div class="res-card" data-cat="hft">
+            <div class="res-card-header">
+              <div class="res-badge res-badge-cp"><i class="fa-solid fa-square-root-variable"></i> CP-Algorithms</div>
+              <span class="res-tag">E-Maxx Encyclopedia</span>
+            </div>
+            <h4>Rigorous Mathematical Algorithms Reference</h4>
+            <p>Number theory, fast modular arithmetic, string hashing, flows, and geometry algorithms with C++ implementations.</p>
+            <div class="res-card-actions">
+              <a href="https://cp-algorithms.com/" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open CP-Algorithms</a>
+            </div>
+          </div>
+
+          <div class="res-card" data-cat="hft">
+            <div class="res-card-header">
+              <div class="res-badge res-badge-errichto"><i class="fa-solid fa-trophy"></i> Errichto</div>
+              <span class="res-tag">Red Coder (ex-Google)</span>
+            </div>
+            <h4>Mastering Speed, Bit Manipulation & DP Optimization</h4>
+            <p>Deep-dive video masterclasses on how top competitive programmers think, optimize memory, and avoid corner-case bugs.</p>
+            <div class="res-card-actions">
+              <a href="https://www.youtube.com/@Errichto" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="fa-brands fa-youtube"></i> Errichto Channel</a>
+            </div>
+          </div>
+
+          <!-- Category 3: Academic Ivy League -->
+          <div class="res-card" data-cat="academic">
+            <div class="res-card-header">
+              <div class="res-badge res-badge-mit"><i class="fa-solid fa-building-columns"></i> MIT 6.006</div>
+              <span class="res-tag">MIT OpenCourseWare</span>
+            </div>
+            <h4>Introduction to Algorithms — Prof. Erik Demaine</h4>
+            <p>Flagship MIT course covering asymptotic analysis, balanced BSTs, shortest paths, Dynamic Programming, and proof of correctness.</p>
+            <div class="res-card-actions">
+              <a href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="fa-solid fa-graduation-cap"></i> MIT Course</a>
+            </div>
+          </div>
+
+          <div class="res-card" data-cat="academic">
+            <div class="res-card-header">
+              <div class="res-badge res-badge-mit"><i class="fa-solid fa-microchip"></i> MIT 6.172</div>
+              <span class="res-tag">Low-Latency Systems</span>
+            </div>
+            <h4>Performance Engineering of Software Systems</h4>
+            <p>The legendary C++ performance course on CPU caches, memory hierarchy, SIMD vectorization, and lock-free concurrency.</p>
+            <div class="res-card-actions">
+              <a href="https://ocw.mit.edu/courses/6-172-performance-engineering-of-software-systems-fall-2018/" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="fa-solid fa-graduation-cap"></i> MIT Course</a>
+            </div>
+          </div>
+
+          <div class="res-card" data-cat="academic">
+            <div class="res-card-header">
+              <div class="res-badge res-badge-stanford"><i class="fa-solid fa-network-wired"></i> Stanford CS149</div>
+              <span class="res-tag">Stanford University</span>
+            </div>
+            <h4>Parallel Computing & Multiprocessor Architecture</h4>
+            <p>Comprehensive Stanford lectures on GPU/CPU hardware parallelism, atomics, cache coherence, and parallel algorithms.</p>
+            <div class="res-card-actions">
+              <a href="http://kayvonf.com/cs149/" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="fa-solid fa-graduation-cap"></i> Stanford Course</a>
+            </div>
+          </div>
+
+          <!-- Category 4: Core Theory -->
+          <div class="res-card" data-cat="theory">
+            <div class="res-card-header">
+              <div class="res-badge res-badge-bari"><i class="fa-solid fa-chalkboard"></i> Abdul Bari</div>
+              <span class="res-tag">Master of Algorithms</span>
+            </div>
+            <h4>Algorithms Masterclass (Blackboard Dry Runs)</h4>
+            <p>Globally revered as the #1 teacher for understanding recurrence trees, Master Theorem, Greedy, Backtracking, and DP proofs.</p>
+            <div class="res-card-actions">
+              <a href="https://www.youtube.com/@abdul_bari" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="fa-brands fa-youtube"></i> Abdul Bari Channel</a>
+            </div>
+          </div>
+
+          <!-- Category 5: Quant & Algo Labs -->
+          <div class="res-card" data-cat="quant">
+            <div class="res-card-header">
+              <div class="res-badge res-badge-qc"><i class="fa-solid fa-chart-line"></i> QuantConnect</div>
+              <span class="res-tag">Algorithmic Lab</span>
+            </div>
+            <h4>Institutional-Grade Strategy Backtesting in C++ & Python</h4>
+            <p>Free algorithmic trading platform with live & historical tick data, execution modeling, and portfolio backtesting.</p>
+            <div class="res-card-actions">
+              <a href="https://www.quantconnect.com/learning" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="fa-solid fa-arrow-up-right-from-square"></i> QuantConnect Lab</a>
+            </div>
+          </div>
+
+          <div class="res-card" data-cat="quant">
+            <div class="res-card-header">
+              <div class="res-badge res-badge-mit"><i class="fa-solid fa-calculator"></i> MIT 18.S096</div>
+              <span class="res-tag">MIT Mathematics</span>
+            </div>
+            <h4>Mathematics with Applications in Finance</h4>
+            <p>Covers Black-Scholes, options pricing, stochastic processes, and portfolio mathematics taught by Wall Street quant practitioners.</p>
+            <div class="res-card-actions">
+              <a href="https://ocw.mit.edu/courses/18-s096-topics-in-mathematics-with-applications-in-finance-fall-2013/" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="fa-solid fa-graduation-cap"></i> MIT Course</a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Google Calendar Sync Modal -->
+  <div id="calendarModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card modal-card-md">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-calendar-days" style="color: #4285f4;"></i> Google Calendar Study Planner</h3>
+        <button id="closeCalendarModalBtn" class="modal-close-btn" aria-label="Close modal">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-description">Customize your daily study slot & duration. Set up automatic recurring reminders synced straight to your Google Calendar.</p>
+
+        <!-- Quick Presets -->
+        <div class="timing-preset-bar">
+          <span class="preset-label"><i class="fa-solid fa-wand-magic-sparkles"></i> Quick Presets:</span>
+          <div class="preset-chips">
+            <button class="preset-chip" data-time="06:00">🌅 Morning (6 AM)</button>
+            <button class="preset-chip" data-time="18:00">🌆 Evening (6 PM)</button>
+            <button class="preset-chip active" data-time="20:00">🌙 Night (8 PM)</button>
+            <button class="preset-chip" data-time="22:30">🦉 Late (10:30 PM)</button>
+          </div>
+        </div>
+
+        <!-- Customizable Time & Duration Grid -->
+        <div class="gcal-options-grid">
+          <div class="gcal-plan-card">
+            <div class="gcal-card-content">
+              <h4><i class="fa-solid fa-clock-rotate-left"></i> Daily Recurring Practice</h4>
+              <p>Creates a daily reminder with direct links to your next unsolved DSA & Quant problems.</p>
+              
+              <div class="time-picker-controls">
+                <div class="time-picker-row">
+                  <label for="gcalDailyTime">Start Time:</label>
+                  <input type="time" id="gcalDailyTime" value="20:00" class="time-input">
+                </div>
+
+                <div class="time-picker-row">
+                  <label for="gcalDuration">Duration:</label>
+                  <select id="gcalDuration" class="time-input">
+                    <option value="45">45 Minutes</option>
+                    <option value="60">1 Hour</option>
+                    <option value="90">1.5 Hours</option>
+                    <option value="120" selected>2 Hours (Recommended)</option>
+                    <option value="180">3 Hours</option>
+                  </select>
+                </div>
+              </div>
+
+              <button id="scheduleDailyGcalBtn" class="btn btn-primary btn-block mt-3">
+                <i class="fa-brands fa-google"></i> Add Daily Slot to Google Calendar
+              </button>
+            </div>
+          </div>
+
+          <div class="gcal-plan-card">
+            <div class="gcal-card-content">
+              <h4><i class="fa-solid fa-bullseye"></i> One-Time Sprint Target</h4>
+              <p>Schedule a specific focused session for tomorrow or weekend deep dive.</p>
+              
+              <div class="time-picker-controls">
+                <div class="time-picker-row">
+                  <label for="gcalTargetTime">Date & Time:</label>
+                  <input type="datetime-local" id="gcalTargetTime" class="time-input">
+                </div>
+              </div>
+
+              <button id="scheduleTargetGcalBtn" class="btn btn-secondary btn-block mt-3">
+                <i class="fa-solid fa-calendar-check"></i> Add Target to Google Calendar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- iCal File Exporter -->
+        <div class="backup-action-card mt-3">
+          <div class="d-flex-between">
+            <div>
+              <h4><i class="fa-solid fa-file-arrow-down"></i> Export Full Schedule (.ics)</h4>
+              <p>Download a file for Google Calendar, Apple Calendar, or Outlook.</p>
+            </div>
+            <button id="exportIcsBtn" class="btn btn-secondary btn-sm">
+              <i class="fa-solid fa-download"></i> Download .ics
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Note & Solution Modal -->
+  <div id="noteModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <div class="modal-badge-group">
+            <span id="modalDiffBadge" class="diff-badge">Easy</span>
+            <span id="modalStepName" class="step-badge">Step 1</span>
+          </div>
+          <h3 id="modalProblemTitle" class="modal-title">Problem Title</h3>
+        </div>
+        <button id="closeNoteModalBtn" class="modal-close-btn" aria-label="Close modal">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="modal-meta-bar">
+          <div id="modalLinksRow" class="modal-links-row">
+            <!-- Dynamically populated links -->
+          </div>
+          <div class="complexity-inputs">
+            <div class="input-with-label">
+              <label for="modalTimeComplexity">Time Complexity:</label>
+              <input type="text" id="modalTimeComplexity" placeholder="e.g. O(N log N)">
+            </div>
+            <div class="input-with-label">
+              <label for="modalSpaceComplexity">Space Complexity:</label>
+              <input type="text" id="modalSpaceComplexity" placeholder="e.g. O(1)">
+            </div>
+          </div>
+        </div>
+
+        <!-- Solve Timer & Attempt Log -->
+        <div class="modal-timer-bar">
+          <div class="timer-display">
+            <i class="fa-solid fa-stopwatch"></i>
+            <span id="timerDisplay">00:00</span>
+          </div>
+          <div class="timer-buttons">
+            <button id="timerStartStopBtn" class="btn-gcal-pill timer-start-btn"><i class="fa-solid fa-play"></i> Start</button>
+            <button id="logAttemptBtn" class="btn-gcal-pill" title="Log this as an attempt without marking solved"><i class="fa-solid fa-flag"></i> Log Attempt</button>
+          </div>
+        </div>
+        <div id="attemptHistoryRow" class="attempt-history-row"></div>
+
+        <!-- Spaced Repetition Review -->
+        <div class="modal-srs-bar">
+          <span><i class="fa-solid fa-brain" style="color: #a855f7;"></i> How well did you know it?</span>
+          <div class="srs-buttons">
+            <button class="srs-btn srs-again" data-grade="again">Again</button>
+            <button class="srs-btn srs-hard" data-grade="hard">Hard</button>
+            <button class="srs-btn srs-good" data-grade="good">Good</button>
+            <button class="srs-btn srs-easy" data-grade="easy">Easy</button>
+          </div>
+          <span id="srsDueLabel" class="srs-due-label"></span>
+        </div>
+
+        <!-- Google Calendar Quick Revision Row -->
+        <div class="modal-calendar-bar">
+          <span><i class="fa-regular fa-calendar-check" style="color: #4285f4;"></i> Also add a Google Calendar reminder:</span>
+          <div class="calendar-quick-buttons">
+            <button id="schedRev3dBtn" class="btn-gcal-pill" title="Remind in 3 Days">+3 Days</button>
+            <button id="schedRev7dBtn" class="btn-gcal-pill" title="Remind in 1 Week">+1 Week</button>
+            <button id="schedRevCustomBtn" class="btn-gcal-pill" title="Schedule on Google Calendar"><i class="fa-brands fa-google"></i> Custom Date</button>
+          </div>
+        </div>
+
+        <!-- Note Text Area -->
+        <div class="form-group">
+          <label for="modalNotesText"><i class="fa-solid fa-pen-nib"></i> Key Intuition & Approach Notes:</label>
+          <textarea id="modalNotesText" placeholder="Write down key insights, edge cases, pattern details, or revision notes..."></textarea>
+        </div>
+
+        <!-- Code Snippet Area -->
+        <div class="form-group">
+          <div class="code-header-bar">
+            <label for="modalCodeSnippet"><i class="fa-solid fa-code"></i> Solution Code:</label>
+            <select id="modalCodeLang" class="lang-select">
+              <option value="cpp">C++</option>
+              <option value="java">Java</option>
+              <option value="python">Python</option>
+              <option value="javascript">JavaScript</option>
+            </select>
+          </div>
+          <textarea id="modalCodeSnippet" class="code-textarea" placeholder="// Paste your optimal solution here..."></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="deleteNoteBtn" class="btn btn-danger-outline" style="display: none;">
+          <i class="fa-solid fa-trash"></i> Delete Note
+        </button>
+        <div class="modal-actions-right">
+          <button id="cancelNoteModalBtn" class="btn btn-secondary">Cancel</button>
+          <button id="saveNoteModalBtn" class="btn btn-primary">
+            <i class="fa-solid fa-floppy-disk"></i> Save Solution
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Backup & Restore Modal -->
+  <div id="backupModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card modal-card-sm">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-database"></i> Data Backup & Restore</h3>
+        <button id="closeBackupModalBtn" class="modal-close-btn" aria-label="Close modal">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-description">Your progress is automatically saved to browser LocalStorage. You can also export a JSON backup file to sync across devices or save records safely.</p>
+
+        <div class="backup-actions-grid">
+          <div class="backup-action-card">
+            <h4><i class="fa-solid fa-file-export"></i> Export Data</h4>
+            <p>Download all solved status, bookmarks, complexity records, and custom solution codes as a <code>.json</code> file.</p>
+            <button id="exportDataBtn" class="btn btn-primary btn-block">
+              <i class="fa-solid fa-download"></i> Export Progress JSON
+            </button>
+          </div>
+
+          <div class="backup-action-card">
+            <h4><i class="fa-solid fa-file-import"></i> Import Data</h4>
+            <p>Upload a previously exported backup file to restore your progress and notes.</p>
+            <input type="file" id="importFileInput" accept=".json" style="display: none;">
+            <button id="importDataBtn" class="btn btn-secondary btn-block">
+              <i class="fa-solid fa-upload"></i> Import Progress JSON
+            </button>
+          </div>
+        </div>
+
+        <div class="danger-zone mt-4">
+          <h4><i class="fa-solid fa-triangle-exclamation"></i> Reset Progress</h4>
+          <p>Clear all your solved questions, notes, and records from this browser.</p>
+          <button id="resetAllDataBtn" class="btn btn-danger-outline btn-sm">
+            <i class="fa-solid fa-trash-can"></i> Reset All Data
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Random Problem Picked Toast / Modal -->
+  <div id="toastNotification" class="toast-notification">
+    <i class="fa-solid fa-check-circle toast-icon"></i>
+    <span id="toastMessage">Progress saved!</span>
+  </div>
+
+  <!-- Scripts -->
+  <script src="data.js"></script>
+  <script src="id_migration.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

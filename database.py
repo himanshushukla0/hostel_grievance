@@ -1080,6 +1080,3 @@ def delete_lost_found_item(item_id):
         cursor.execute("DELETE FROM LostAndFound WHERE item_id = ?", (item_id,))
         conn.commit()
 
-
-# Initialize the local SQLite schema on import (no-op when Supabase is configured)
-init_db()

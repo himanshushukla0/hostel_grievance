@@ -83,7 +83,7 @@ class AdminView:
         self.filter_status_combobox = ttk.Combobox(
             self.filter_frame, 
             textvariable=self.filter_status_var, 
-            values=["All", "Pending", "In Progress", "Resolved"], 
+            values=["All", "Pending", "In Progress", "Resolved", "Rejected"], 
             state="readonly", 
             width=10
         )
@@ -335,11 +335,6 @@ class AdminView:
                 n['posted_by']
             ))
 
-    def delete_notice(self):
-        selected = self.notice_tree.selection()
-        if not selected:
-            messagebox.showerror("Error", "Please select a notice from the table to delete.")
-            return
 
     def setup_leave_admin_tab(self):
         # Header & Filter Bar
